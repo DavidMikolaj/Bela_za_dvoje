@@ -1,8 +1,8 @@
-﻿# Bela za dvoje
+# Bela za dvoje
 
-A full-stack, two-player Croatian Bela card game application. This repository contains a React + TypeScript + Vite client and a Node.js + Express + TypeScript server with Socket.IO prepared for real-time communication.
+A two-player Croatian Bela application with a React + TypeScript + Vite client and a Node.js + Express + TypeScript backend. The backend contains the Mađarice deck, shuffle, deal, adut bidding, and dealer rotation engine. SQLite configuration will be added later.
 
-Game rules and play logic are not implemented yet. SQLite is planned; database configuration will be added later.
+The current browser table is a local hot-seat testing interface. It supports dealing, adut bidding, private hand handoffs, and development-only test-round transitions. Trick-taking, scoring, and zvanja are not implemented.
 
 ## Requirements
 
@@ -17,27 +17,30 @@ npm install --prefix client
 npm install --prefix server
 ```
 
-## Development
+## Start the application
 
-Run both apps from the repository root:
+From the repository root, run:
 
 ```sh
 npm run dev
 ```
 
-Or start them separately:
+Open the **frontend** URL printed by Vite (normally [http://localhost:5173](http://localhost:5173), shown on the `[frontend] Local:` line). Port `3000` is the backend API and is not the game page. Vite proxies `/api` requests to that backend. If port 5173 is already occupied, use the alternate URL printed on the frontend line.
+
+To test a match in the browser:
+
+1. Select **New Match**. The server shuffles and deals the cards; Player 2 receives the first hand in round 1.
+2. Use the displayed allowed adut action. Passing automatically hands the view to the next bidder. **Switch Player** can also hand off the device at any time.
+3. Only the active local player's cards are sent to the browser. During bidding, they see their initial six; after adut is selected, they see all ten.
+4. After adut selection, the table shows **Card play coming soon**. **End Test Round** ends the development test without awarding points. **Start Next Round** then starts the next round and rotates the dealer.
+5. Refreshing the browser reloads the active player-specific view from the running backend. Match state is in memory, so restarting the backend resets the test match.
+
+The hot-seat switch and game routes are development-only and are not multiplayer authentication. The scoreboard remains at zero because scoring is not implemented.
+
+## Checks
 
 ```sh
-npm run dev --prefix client
-npm run dev --prefix server
-```
-
-The client runs at `http://localhost:5173`; the server runs at `http://localhost:3000` and exposes `GET /health`.
-
-## Build and checks
-
-```sh
+npm test
 npm run typecheck
 npm run build
-npm test
 ```

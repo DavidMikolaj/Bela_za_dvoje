@@ -101,13 +101,21 @@ export function completeRound(state: GameState): GameState {
   return { ...state, phase: "round-complete", currentBidder: null };
 }
 
+/** Development-only transition that ends a test without implying card play or scoring. */
+export function endTestRound(state: GameState): GameState {
+  if (state.phase === "round-complete" || state.phase === "test-round-ended") {
+    throw new GameRuleError("This round has already ended.");
+  }
+  return { ...state, phase: "test-round-ended", currentBidder: null };
+}
+
 /** Start exactly one next round after the previous round was marked complete. */
 export function startNextRound(
   state: GameState,
   deck: readonly Card[] = shuffleDeck(createDeck()),
 ): GameState {
-  if (state.phase !== "round-complete") {
-    throw new GameRuleError("The current round must be complete before starting the next round.");
+  if (state.phase !== "round-complete" && state.phase !== "test-round-ended") {
+    throw new GameRuleError("The current round must be complete or explicitly ended before starting the next round.");
   }
   return dealGame(deck, state.roundNumber + 1);
 }
@@ -148,10 +156,11 @@ export function submitBid(state: GameState, player: Player, suit: Suit | null): 
 /** Returns only information that the requested player is allowed to see. */
 export function getPlayerView(state: GameState, viewer: Player): PlayerGameView {
   const ownHand = state.players[viewer];
-  const ownCards = state.phase === "bidding"
+  const adutSelected = state.bidding.selectedSuit !== null;
+  const ownCards = !adutSelected
     ? ownHand.initialCards
     : [...ownHand.initialCards, ...ownHand.additionalCards];
-  const ownHiddenCount = state.phase === "bidding" ? ownHand.additionalCards.length : 0;
+  const ownHiddenCount = adutSelected ? 0 : ownHand.additionalCards.length;
   const otherPlayer: Player = viewer === "player1" ? "player2" : "player1";
   const otherHand = state.players[otherPlayer];
   const otherCardCount = otherHand.initialCards.length + otherHand.additionalCards.length;
@@ -180,7 +189,19 @@ export function getPlayerView(state: GameState, viewer: Player): PlayerGameView 
     faceUpCard: state.faceUpCard,
     faceDownStackCount: state.faceDownStack.length,
     bidding: state.bidding,
+    allowedBids: getAllowedBids(state, viewer),
   };
+}
+
+export function getAllowedBids(state: GameState, player: Player): readonly (Suit | null)[] {
+  if (state.phase !== "bidding" || state.currentBidder !== player) return [];
+
+  if (state.bidding.turn === 1 || state.bidding.turn === 2) {
+    return [state.faceUpCard.suit, null];
+  }
+
+  const alternateSuits = SUITS.filter((suit) => suit !== state.faceUpCard.suit);
+  return state.bidding.turn === 3 ? [...alternateSuits, null] : alternateSuits;
 }
 
 function playerForTurn(state: GameState, turn: BiddingTurn): Player {

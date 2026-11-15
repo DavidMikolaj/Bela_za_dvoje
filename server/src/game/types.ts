@@ -4,7 +4,7 @@ export type Suit = (typeof SUITS)[number];
 export type Rank = "7" | "8" | "9" | "10" | "J" | "Q" | "K" | "A";
 export type Player = "player1" | "player2";
 export type BiddingTurn = 1 | 2 | 3 | 4;
-export type GamePhase = "bidding" | "adut-selected" | "round-complete";
+export type GamePhase = "bidding" | "adut-selected" | "round-complete" | "test-round-ended";
 
 export interface Card {
   readonly id: string;
@@ -60,4 +60,6 @@ export interface PlayerGameView {
   readonly faceUpCard: Card;
   readonly faceDownStackCount: number;
   readonly bidding: BiddingState;
+  /** Legal choices for this viewer only; empty when it is not their turn. */
+  readonly allowedBids: readonly (Suit | null)[];
 }

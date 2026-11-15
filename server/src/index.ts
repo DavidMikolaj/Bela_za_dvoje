@@ -1,6 +1,7 @@
 ﻿import express from "express";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
+import { createLocalGameRouter } from "./dev/local-game-api.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -12,6 +13,10 @@ app.get("/health", (_request, response) => {
   response.json({ status: "ok" });
 });
 
+if (process.env.NODE_ENV !== "production") {
+  app.use("/api/dev", createLocalGameRouter());
+}
+
 io.on("connection", (socket) => {
   console.info(`Socket connected: ${socket.id}`);
   socket.on("disconnect", () => {
@@ -21,5 +26,6 @@ io.on("connection", (socket) => {
 
 const port = Number(process.env.PORT ?? 3000);
 httpServer.listen(port, () => {
-  console.info(`Server listening on http://localhost:${port}`);
+  console.info(`Backend API listening on http://localhost:${port}`);
+  console.info("Open the frontend at http://localhost:5173/");
 });
