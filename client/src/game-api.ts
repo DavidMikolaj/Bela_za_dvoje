@@ -2,7 +2,7 @@ export const SUITS = ["srce", "tikva", "žir", "zelje"] as const;
 
 export type Suit = (typeof SUITS)[number];
 export type Player = "player1" | "player2";
-export type GamePhase = "bidding" | "adut-selected" | "round-complete" | "test-round-ended";
+export type GamePhase = "bidding" | "playing" | "trick-complete" | "round-complete" | "test-round-ended";
 
 export interface Card {
   readonly id: string;
@@ -15,6 +15,7 @@ export interface PlayerGameView {
   readonly dealer: Player;
   readonly nonDealer: Player;
   readonly currentBidder: Player | null;
+  readonly currentPlayer: Player | null;
   readonly phase: GamePhase;
   readonly viewer: Player;
   readonly hands: Readonly<Record<Player, {
@@ -30,6 +31,17 @@ export interface PlayerGameView {
     readonly selectedBy: Player | null;
   };
   readonly allowedBids: readonly (Suit | null)[];
+  readonly legalCardIds: readonly string[];
+  readonly tricksPlayed: number;
+  readonly currentTrick: {
+    readonly number: number;
+    readonly cards: readonly { readonly player: Player; readonly card: Card }[];
+    readonly ledSuit: Suit | null;
+    readonly winner: Player | null;
+  };
+  readonly awaitingTrickAcknowledgement: boolean;
+  readonly tricksWon: Readonly<Record<Player, number>>;
+  readonly collectedCardCounts: Readonly<Record<Player, number>>;
 }
 
 export type LocalMatchSnapshot =
@@ -67,5 +79,7 @@ export const localGameApi = {
   startNextRound: () => request<LocalMatchSnapshot>("/match/round", "POST"),
   switchPlayer: () => request<LocalMatchSnapshot>("/match/switch-player", "POST"),
   submitBid: (suit: Suit | null) => request<LocalMatchSnapshot>("/match/bid", "POST", { suit }),
+  playCard: (cardId: string) => request<LocalMatchSnapshot>("/match/play", "POST", { cardId }),
+  acknowledgeTrick: () => request<LocalMatchSnapshot>("/match/acknowledge-trick", "POST"),
   endTestRound: () => request<LocalMatchSnapshot>("/match/end-test-round", "POST"),
 };

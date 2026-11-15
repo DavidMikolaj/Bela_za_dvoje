@@ -106,7 +106,7 @@ describe("local hot-seat game API", () => {
     const passOnFour = await json("/match/bid", "POST", { suit: null });
     expect(passOnFour.response.status).toBe(400);
     const call = (await json("/match/bid", "POST", { suit: legalAlternateSuits[0] })).payload;
-    expect(call.view.phase).toBe("adut-selected");
+    expect(call.view.phase).toBe("playing");
     expect(call.view.bidding.selectedBy).toBe("player1");
   });
 
@@ -115,7 +115,7 @@ describe("local hot-seat game API", () => {
     const created = (await json("/match", "POST")).payload;
     const selected = (await json("/match/bid", "POST", { suit: created.view.faceUpCard.suit })).payload;
 
-    expect(selected.view.phase).toBe("adut-selected");
+    expect(selected.view.phase).toBe("playing");
     expect(selected.view.bidding.selectedBy).toBe("player2");
     expect(selected.view.hands.player2.cards).toHaveLength(10);
     expect(selected.view.hands.player1.cards).toEqual([]);
@@ -125,6 +125,40 @@ describe("local hot-seat game API", () => {
     const otherPlayerView = (await json("/match/switch-player", "POST")).payload;
     expect(otherPlayerView.view.hands.player1.cards).toHaveLength(10);
     expect(otherPlayerView.view.hands.player2.cards).toEqual([]);
+  });
+
+  it("accepts legal plays, rejects hidden opponent cards, and holds trick cards for acknowledgement", async () => {
+    const { json } = await startApi();
+    const created = (await json("/match", "POST")).payload;
+    const called = (await json("/match/bid", "POST", { suit: created.view.faceUpCard.suit })).payload;
+    const leadCard = called.view.hands.player2.cards[0];
+
+    const responseView = (await json("/match/play", "POST", { cardId: leadCard.id })).payload;
+    expect(responseView.view.phase).toBe("playing");
+    expect(responseView.activePlayer).toBe("player1");
+    expect(responseView.view.currentPlayer).toBe("player1");
+    expect(responseView.view.currentTrick.cards).toHaveLength(1);
+    expect(responseView.view.hands.player2.cards).toEqual([]);
+    expect(JSON.stringify(responseView)).not.toContain(
+      called.view.hands.player2.cards.find((card: { id: string }) => card.id !== leadCard.id).id,
+    );
+
+    const opponentCard = called.view.hands.player2.cards.find((card: { id: string }) => card.id !== leadCard.id);
+    const rejected = await json("/match/play", "POST", { cardId: opponentCard.id });
+    expect(rejected.response.status).toBe(400);
+
+    const legalId = responseView.view.legalCardIds[0];
+    const result = (await json("/match/play", "POST", { cardId: legalId })).payload;
+    expect(result.view.phase).toBe("trick-complete");
+    expect(result.view.currentTrick.cards).toHaveLength(2);
+    expect(result.view.currentTrick.winner).toMatch(/player[12]/);
+    expect(result.view.awaitingTrickAcknowledgement).toBe(true);
+
+    const nextTrick = (await json("/match/acknowledge-trick", "POST")).payload;
+    expect(nextTrick.view.phase).toBe("playing");
+    expect(nextTrick.view.currentPlayer).toBe(result.view.currentTrick.winner);
+    expect(nextTrick.activePlayer).toBe(result.view.currentTrick.winner);
+    expect(nextTrick.view.currentTrick.cards).toEqual([]);
   });
 
   it("ends a development test without points and rotates the dealer once on the next round", async () => {

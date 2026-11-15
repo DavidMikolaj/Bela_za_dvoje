@@ -395,6 +395,54 @@ button {
   color: #698172;
 }
 
+.trick-scoreboard {
+  min-height: 48px;
+  margin: -3px 0 13px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: rgba(232, 242, 231, 0.025);
+}
+
+.trick-score-title,
+.trick-progress {
+  color: #a9c5ae;
+  font-family: "DM Mono", monospace;
+  font-size: 8px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.trick-scoreboard > div {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-left: auto;
+  color: #b7c9b9;
+  font-size: 10px;
+}
+
+.trick-scoreboard strong {
+  color: #f3f0e6;
+  font-family: "DM Mono", monospace;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.trick-scoreboard small {
+  color: #8ca392;
+  font-size: 8px;
+}
+
+.trick-progress {
+  margin-left: 3px;
+  color: #d9e6d8;
+  letter-spacing: 0;
+}
+
 .table {
   position: relative;
   min-height: 440px;
@@ -493,6 +541,35 @@ button {
   box-shadow: 0 4px 8px rgba(4, 24, 15, 0.22), inset 0 0 0 2px rgba(255, 255, 255, 0.62);
 }
 
+button.playing-card {
+  padding: 0;
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.playing-card.selectable-card {
+  transition: opacity 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+
+.playing-card.legal-card {
+  z-index: 1;
+  border-color: #d4e8c1;
+  box-shadow: 0 0 0 2px rgba(216, 240, 193, 0.28), 0 7px 13px rgba(4, 24, 15, 0.32);
+  transform: translateY(-4px);
+}
+
+.playing-card.legal-card:hover:not(:disabled) {
+  transform: translateY(-8px);
+}
+
+.playing-card.illegal-card,
+.playing-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 .card-rank {
   position: absolute;
   top: 7px;
@@ -580,6 +657,75 @@ button {
   grid-template-columns: 1fr minmax(260px, 1.2fr) 1fr;
   align-items: center;
   gap: 13px;
+}
+
+.trick-display {
+  grid-column: 1 / -1;
+  min-height: 112px;
+  padding: 2px 0 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trick-display-heading {
+  width: min(410px, 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #c5dac7;
+  font-family: "DM Mono", monospace;
+  font-size: 8px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.trick-display-heading i {
+  color: #8faa96;
+  font-style: normal;
+}
+
+.trick-display-heading strong {
+  color: #f1e7bd;
+  font-family: "DM Sans", sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.trick-cards {
+  min-height: 83px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 15px;
+}
+
+.played-card {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.played-card > span {
+  color: #c5d9c7;
+  font-size: 8px;
+}
+
+.card-slot {
+  width: 57px;
+  height: 82px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgba(223, 239, 218, 0.3);
+  border-radius: 7px;
+  color: rgba(223, 239, 218, 0.5);
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 19px;
 }
 
 .table-rule {
@@ -679,6 +825,13 @@ button {
   grid-column: 1 / -1;
   min-height: 98px;
   text-align: center;
+}
+
+.trick-ack-button {
+  min-height: 34px;
+  margin-top: 11px;
+  padding: 0 12px;
+  font-size: 10px;
 }
 
 .bidding-panel .eyebrow {
@@ -864,6 +1017,25 @@ button {
     gap: 10px;
   }
 
+  .trick-scoreboard {
+    padding: 8px 10px;
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+
+  .trick-scoreboard > div {
+    gap: 4px;
+    font-size: 8px;
+  }
+
+  .trick-scoreboard small {
+    display: none;
+  }
+
+  .trick-progress {
+    margin-left: auto;
+  }
+
   .score-title {
     gap: 5px;
     font-size: 7px;
@@ -940,6 +1112,20 @@ button {
     margin: 12px 0;
     grid-template-columns: 1fr minmax(210px, 1.5fr) 1fr;
     gap: 5px;
+  }
+
+  .trick-display {
+    min-height: 100px;
+  }
+
+  .trick-cards {
+    min-height: 69px;
+    gap: 11px;
+  }
+
+  .card-slot {
+    width: 47px;
+    height: 68px;
   }
 
   .center-cards {
@@ -1043,6 +1229,11 @@ button {
   .table-center {
     grid-template-columns: 1fr minmax(195px, 1.6fr) 1fr;
     gap: 2px;
+  }
+
+  .card-slot {
+    width: 42px;
+    height: 61px;
   }
 
   .deck-stack::before,

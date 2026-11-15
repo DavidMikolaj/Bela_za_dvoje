@@ -4,7 +4,7 @@ export type Suit = (typeof SUITS)[number];
 export type Rank = "7" | "8" | "9" | "10" | "J" | "Q" | "K" | "A";
 export type Player = "player1" | "player2";
 export type BiddingTurn = 1 | 2 | 3 | 4;
-export type GamePhase = "bidding" | "adut-selected" | "round-complete" | "test-round-ended";
+export type GamePhase = "bidding" | "playing" | "trick-complete" | "round-complete" | "test-round-ended";
 
 export interface Card {
   readonly id: string;
@@ -25,6 +25,26 @@ export interface BiddingState {
   readonly selectedBy: Player | null;
 }
 
+export interface PlayedCard {
+  readonly player: Player;
+  readonly card: Card;
+}
+
+export interface TrickState {
+  readonly number: number;
+  readonly cards: readonly PlayedCard[];
+  readonly ledSuit: Suit | null;
+  readonly winner: Player | null;
+}
+
+export interface CompletedRoundCards {
+  readonly roundNumber: number;
+  readonly dealer: Player;
+  readonly adut: Suit;
+  readonly tricksWon: Readonly<Record<Player, number>>;
+  readonly collectedCards: Readonly<Record<Player, readonly Card[]>>;
+}
+
 /** Complete server-side state. Do not send this object to a player. */
 export interface GameState {
   readonly roundNumber: number;
@@ -32,12 +52,21 @@ export interface GameState {
   readonly nonDealer: Player;
   /** Null once adut has been selected or the round is complete. */
   readonly currentBidder: Player | null;
+  readonly currentPlayer: Player | null;
   readonly phase: GamePhase;
   readonly players: Readonly<Record<Player, PlayerHand>>;
   readonly faceUpCard: Card;
   /** The eleven cards stacked face-down over the face-up card. */
   readonly faceDownStack: readonly Card[];
   readonly bidding: BiddingState;
+  readonly tricksPlayed: number;
+  readonly currentTrick: TrickState;
+  readonly awaitingTrickAcknowledgement: boolean;
+  readonly tricksWon: Readonly<Record<Player, number>>;
+  /** Cards won in tricks this round; retained for later scoring work. */
+  readonly collectedCards: Readonly<Record<Player, readonly Card[]>>;
+  /** Completed played rounds are retained when the next deal begins. */
+  readonly completedRounds: readonly CompletedRoundCards[];
 }
 
 export interface PlayerHandView {
@@ -54,6 +83,7 @@ export interface PlayerGameView {
   readonly dealer: Player;
   readonly nonDealer: Player;
   readonly currentBidder: Player | null;
+  readonly currentPlayer: Player | null;
   readonly phase: GamePhase;
   readonly viewer: Player;
   readonly hands: Readonly<Record<Player, PlayerHandView>>;
@@ -62,4 +92,10 @@ export interface PlayerGameView {
   readonly bidding: BiddingState;
   /** Legal choices for this viewer only; empty when it is not their turn. */
   readonly allowedBids: readonly (Suit | null)[];
+  readonly legalCardIds: readonly string[];
+  readonly tricksPlayed: number;
+  readonly currentTrick: TrickState;
+  readonly awaitingTrickAcknowledgement: boolean;
+  readonly tricksWon: Readonly<Record<Player, number>>;
+  readonly collectedCardCounts: Readonly<Record<Player, number>>;
 }

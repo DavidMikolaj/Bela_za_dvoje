@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createDeck, RANKS } from "../src/game/cards.js";
 import {
-  completeRound,
   dealGame,
+  endTestRound,
   GameRuleError,
   getDealerForRound,
   getNextDealer,
@@ -172,7 +172,7 @@ describe("alternating dealer and round transitions", () => {
   it("keeps the dealer fixed through a round and switches exactly once on transition", () => {
     const round1 = dealGame(createDeck(), 1);
     const round1Selected = submitBid(round1, round1.nonDealer, round1.faceUpCard.suit);
-    const completedRound1 = completeRound(round1Selected);
+    const completedRound1 = endTestRound(round1Selected);
 
     expect(round1Selected.dealer).toBe("player1");
     expect(completedRound1.dealer).toBe("player1");
@@ -185,7 +185,7 @@ describe("alternating dealer and round transitions", () => {
     expect(() => startNextRound(round2, createDeck())).toThrow(GameRuleError);
 
     const round2Selected = submitBid(round2, round2.nonDealer, round2.faceUpCard.suit);
-    const round3 = startNextRound(completeRound(round2Selected), createDeck());
+    const round3 = startNextRound(endTestRound(round2Selected), createDeck());
     expect(round3.roundNumber).toBe(3);
     expect(round3.dealer).toBe("player1");
   });
@@ -205,7 +205,8 @@ describe("adut bidding", () => {
     expect(turn4.bidding.turn).toBe(4);
 
     const selected = submitBid(turn4, "player1", alternateSuit);
-    expect(selected.phase).toBe("adut-selected");
+    expect(selected.phase).toBe("playing");
+    expect(selected.currentPlayer).toBe(selected.nonDealer);
     expect(selected.bidding).toEqual({ turn: 4, selectedSuit: alternateSuit, selectedBy: "player1" });
     expect(selected.players).toBe(state.players);
   });
@@ -214,7 +215,8 @@ describe("adut bidding", () => {
     const state = orderedGame();
     const selected = submitBid(state, "player2", state.faceUpCard.suit);
 
-    expect(selected.phase).toBe("adut-selected");
+    expect(selected.phase).toBe("playing");
+    expect(selected.currentPlayer).toBe(selected.nonDealer);
     expect(selected.bidding.selectedBy).toBe("player2");
     expect(selected.bidding.turn).toBe(1);
     expect(() => submitBid(selected, "player1", state.faceUpCard.suit)).toThrow(GameRuleError);

@@ -16,14 +16,28 @@ function suitClass(suit: Suit): string {
   }
 }
 
-function CardFace({ card }: { readonly card: Card }) {
-  return (
-    <div className={`playing-card ${suitClass(card.suit)}`} aria-label={`${card.rank} ${card.suit}`}>
+function CardFace({
+  card,
+  onPlay,
+  disabled = false,
+  legal = false,
+}: {
+  readonly card: Card;
+  readonly onPlay?: () => void;
+  readonly disabled?: boolean;
+  readonly legal?: boolean;
+}) {
+  const className = `playing-card ${suitClass(card.suit)} ${onPlay ? `selectable-card ${legal ? "legal-card" : "illegal-card"}` : ""}`;
+  const content = <>
       <span className="card-rank">{card.rank}</span>
       <span className="card-suit">{card.suit}</span>
       <span className="card-corner" aria-hidden="true">{card.rank}</span>
-    </div>
-  );
+    </>;
+
+  if (onPlay) {
+    return <button type="button" className={className} aria-label={`Play ${card.rank} ${card.suit}`} onClick={onPlay} disabled={disabled}>{content}</button>;
+  }
+  return <div className={`playing-card ${suitClass(card.suit)}`} aria-label={`${card.rank} ${card.suit}`}>{content}</div>;
 }
 
 function CardBack({ index }: { readonly index: number }) {
@@ -34,16 +48,21 @@ function PlayerArea({
   player,
   view,
   activePlayer,
+  onPlayCard,
 }: {
   readonly player: Player;
   readonly view: PlayerGameView;
   readonly activePlayer: Player;
+  readonly onPlayCard: (cardId: string) => void;
 }) {
   const isDealer = view.dealer === player;
   const hand = view.hands[player];
   const visibleCards = sortCardsForDisplay(hand.cards);
   const backCount = Math.max(0, hand.cardCount - visibleCards.length);
   const isCurrent = activePlayer === player;
+  const isViewer = view.viewer === player;
+  const canInteract = isViewer && isCurrent && view.phase === "playing";
+  const legalCardIds = new Set(view.legalCardIds);
 
   return (
     <section className={`player-area ${isCurrent ? "is-active" : ""}`} aria-label={`${playerName(player)} hand`}>
@@ -53,10 +72,19 @@ function PlayerArea({
           <p>{isDealer ? "Dealer" : "Non-dealer"}</p>
         </div>
         {isCurrent && <span className="active-pill">Viewing</span>}
-        {view.currentBidder === player && view.phase === "bidding" && <span className="turn-pill">To bid</span>}
+        {((view.currentBidder === player && view.phase === "bidding") ||
+          (view.currentPlayer === player && view.phase === "playing")) && <span className="turn-pill">To act</span>}
       </div>
       <div className="hand-cards" aria-label={`${visibleCards.length} visible, ${backCount} face-down cards`}>
-        {visibleCards.map((card) => <CardFace key={card.id} card={card} />)}
+        {visibleCards.map((card) => (
+          <CardFace
+            key={card.id}
+            card={card}
+            onPlay={isViewer && isCurrent && view.phase === "playing" ? () => onPlayCard(card.id) : undefined}
+            disabled={!canInteract || !legalCardIds.has(card.id)}
+            legal={canInteract && legalCardIds.has(card.id)}
+          />
+        ))}
         {Array.from({ length: backCount }, (_, index) => <CardBack key={`back-${player}-${index}`} index={index} />)}
         {hand.cardCount === 0 && <span className="empty-hand">No cards dealt</span>}
       </div>
@@ -105,7 +133,8 @@ function App() {
 
   const match = snapshot?.matchExists ? snapshot : null;
   const view = match?.view ?? null;
-  const isEnded = view?.phase === "round-complete" || view?.phase === "test-round-ended";
+  const isEnded = view?.phase === "test-round-ended" ||
+    (view?.phase === "round-complete" && !view.awaitingTrickAcknowledgement);
   const allowedBids = view?.allowedBids ?? [];
 
   return (
@@ -175,8 +204,8 @@ function App() {
               </div>
               <div className="status-item bidding-status">
                 <span className="status-icon">◎</span>
-                <div><small>{view.currentBidder ? "BIDDING TURN" : "ROUND STATUS"}</small>
-                  <strong>{view.currentBidder ? playerName(view.currentBidder) : phaseLabel(view.phase)}</strong></div>
+                <div><small>{view.currentBidder ? "BIDDING TURN" : view.currentPlayer ? "CARD PLAY" : "ROUND STATUS"}</small>
+                  <strong>{view.currentBidder ? playerName(view.currentBidder) : view.currentPlayer ? playerName(view.currentPlayer) : phaseLabel(view.phase)}</strong></div>
               </div>
             </section>
 
@@ -187,9 +216,18 @@ function App() {
               <div className="score-player"><span>Player 2</span><strong>{match.scores.player2}</strong></div>
             </section>
 
+            <section className="trick-scoreboard" aria-label="Trick results">
+              <span className="trick-score-title">TRICKS WON</span>
+              <div><span>Player 1</span><strong>{view.tricksWon.player1}</strong><small>{view.collectedCardCounts.player1} cards collected</small></div>
+              <span className="score-divider">—</span>
+              <div><span>Player 2</span><strong>{view.tricksWon.player2}</strong><small>{view.collectedCardCounts.player2} cards collected</small></div>
+              <span className="trick-progress">{view.tricksPlayed} / 10 tricks</span>
+            </section>
+
             <section className="table" aria-label="Bela table">
               <div className="felt-grain" aria-hidden="true" />
-              <PlayerArea player="player2" view={view} activePlayer={match.activePlayer} />
+              <PlayerArea player="player2" view={view} activePlayer={match.activePlayer}
+                onPlayCard={(cardId) => void runAction(() => localGameApi.playCard(cardId))} />
 
               <div className="table-center">
                 <div className="table-rule" />
@@ -203,6 +241,29 @@ function App() {
                     <CardFace card={view.faceUpCard} />
                   </div>
                 </div>
+                {(view.phase === "playing" || view.currentTrick.cards.length > 0) && (
+                  <div className="trick-display" aria-live="polite">
+                    <div className="trick-display-heading">
+                      <span>TRICK {view.currentTrick.number} <i>/ 10</i></span>
+                      {view.currentTrick.winner && <strong>{playerName(view.currentTrick.winner)} won</strong>}
+                      {!view.currentTrick.winner && <strong>{view.currentPlayer
+                        ? (view.currentTrick.cards.length === 0 ? "Lead a card" : `Waiting for ${playerName(view.currentPlayer)}`)
+                        : "Test ended before this trick finished"}</strong>}
+                    </div>
+                    <div className="trick-cards">
+                      {view.currentTrick.cards.map(({ player, card }) => (
+                        <div className="played-card" key={`${view.currentTrick.number}-${player}`}>
+                          <span>{playerName(player)}</span><CardFace card={card} />
+                        </div>
+                      ))}
+                      {Array.from({ length: 2 - view.currentTrick.cards.length }, (_, index) => (
+                        <div className="played-card" key={`waiting-${index}`}>
+                          <span>—</span><div className="card-slot">?</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="table-rule" />
                 <div className="bidding-panel" aria-live="polite">
                   {view.phase === "bidding" && (
@@ -224,12 +285,21 @@ function App() {
                       ) : <p className="small-note">Switch to the player whose turn it is to bid.</p>}
                     </>
                   )}
-                  {view.phase === "adut-selected" && (
+                  {view.phase === "playing" && (
                     <>
-                      <p className="eyebrow">ADUT SELECTED</p>
-                      <h2><span className={`suit-word ${suitClass(view.bidding.selectedSuit!)}`}>{view.bidding.selectedSuit}</span></h2>
-                      <p className="small-note">Called by {playerName(view.bidding.selectedBy!)} · both players can now see their own ten cards</p>
-                      <div className="coming-soon"><span>✦</span> Card play coming soon</div>
+                      <p className="eyebrow">TRICK {view.currentTrick.number} OF 10 · ADUT {view.bidding.selectedSuit}</p>
+                      <h2>{view.currentPlayer === match.activePlayer
+                        ? `${playerName(match.activePlayer)}, play a highlighted card`
+                        : `Waiting for ${playerName(view.currentPlayer!)}`}</h2>
+                      <p className="small-note">Adut called by {playerName(view.bidding.selectedBy!)} · legal cards are highlighted</p>
+                    </>
+                  )}
+                  {view.phase === "trick-complete" && (
+                    <>
+                      <p className="eyebrow">TRICK {view.currentTrick.number} COMPLETE</p>
+                      <h2>{playerName(view.currentTrick.winner!)} wins the trick</h2>
+                      <p className="small-note">The played cards remain visible until you acknowledge the result.</p>
+                      <button className="button button-primary trick-ack-button" onClick={() => void runAction(localGameApi.acknowledgeTrick)} disabled={busy}>Acknowledge trick <span aria-hidden="true">→</span></button>
                     </>
                   )}
                   {view.phase === "test-round-ended" && (
@@ -240,12 +310,18 @@ function App() {
                     </>
                   )}
                   {view.phase === "round-complete" && (
-                    <><p className="eyebrow">ROUND COMPLETE</p><h2>Round complete</h2></>
+                    <>
+                      <p className="eyebrow">ROUND COMPLETE · 10 TRICKS</p>
+                      <h2>Round complete</h2>
+                      <p className="small-note">{view.tricksWon.player1} tricks for Player 1 · {view.tricksWon.player2} tricks for Player 2 · no points calculated</p>
+                      {view.awaitingTrickAcknowledgement && <button className="button button-primary trick-ack-button" onClick={() => void runAction(localGameApi.acknowledgeTrick)} disabled={busy}>Acknowledge final trick <span aria-hidden="true">→</span></button>}
+                    </>
                   )}
                 </div>
               </div>
 
-              <PlayerArea player="player1" view={view} activePlayer={match.activePlayer} />
+              <PlayerArea player="player1" view={view} activePlayer={match.activePlayer}
+                onPlayCard={(cardId) => void runAction(() => localGameApi.playCard(cardId))} />
             </section>
 
             <section className="controls-row" aria-label="Local development controls">
@@ -261,14 +337,14 @@ function App() {
                   <button className="button button-primary" onClick={() => void runAction(localGameApi.startNextRound)} disabled={busy}>
                     Start Next Round <span aria-hidden="true">→</span>
                   </button>
-                ) : (
+                ) : (view.phase === "bidding" || view.phase === "playing") ? (
                   <button className="button button-danger-quiet" onClick={() => void runAction(localGameApi.endTestRound)} disabled={busy}>
                     End Test Round
                   </button>
-                )}
+                ) : null}
               </div>
             </section>
-            <p className="dev-disclaimer">Development-only hot-seat controls · not multiplayer authentication · scoring and card play are not implemented.</p>
+            <p className="dev-disclaimer">Development-only hot-seat controls · not multiplayer authentication · scoring, zvanja and Bela announcements are not implemented.</p>
           </>
         )}
       </div>
@@ -279,7 +355,8 @@ function App() {
 function phaseLabel(phase: PlayerGameView["phase"]): string {
   switch (phase) {
     case "bidding": return "Bidding";
-    case "adut-selected": return "Waiting for card play";
+    case "playing": return "Card play";
+    case "trick-complete": return "Trick result";
     case "round-complete": return "Complete";
     case "test-round-ended": return "Test ended";
   }

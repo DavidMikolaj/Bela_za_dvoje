@@ -4,6 +4,8 @@ import {
   endTestRound,
   GameRuleError,
   getPlayerView,
+  acknowledgeTrick,
+  playCard,
   startNextRound,
   submitBid,
 } from "../game/game-engine.js";
@@ -91,6 +93,7 @@ export function createLocalGameRouter(): Router {
     try {
       match.state = submitBid(match.state, match.activePlayer, submittedSuit as Suit | null);
       if (match.state.currentBidder) match.activePlayer = match.state.currentBidder;
+      else if (match.state.currentPlayer) match.activePlayer = match.state.currentPlayer;
       response.json(toResponse(match));
     } catch (error) {
       sendError(response, error);
@@ -101,6 +104,33 @@ export function createLocalGameRouter(): Router {
     if (!match) return response.status(404).json({ error: "No local match exists." });
     match.activePlayer = otherPlayer(match.activePlayer);
     response.json(toResponse(match));
+  });
+
+  router.post("/match/play", (request, response) => {
+    if (!match) return response.status(404).json({ error: "No local match exists." });
+    const cardId: unknown = request.body?.cardId;
+    if (typeof cardId !== "string") {
+      response.status(400).json({ error: "Choose a card from your visible hand." });
+      return;
+    }
+    try {
+      match.state = playCard(match.state, match.activePlayer, cardId);
+      if (match.state.currentPlayer) match.activePlayer = match.state.currentPlayer;
+      response.json(toResponse(match));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.post("/match/acknowledge-trick", (_request, response) => {
+    if (!match) return response.status(404).json({ error: "No local match exists." });
+    try {
+      match.state = acknowledgeTrick(match.state);
+      if (match.state.currentPlayer) match.activePlayer = match.state.currentPlayer;
+      response.json(toResponse(match));
+    } catch (error) {
+      sendError(response, error);
+    }
   });
 
   router.post("/match/end-test-round", (_request, response) => {
