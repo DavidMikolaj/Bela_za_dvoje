@@ -14,7 +14,6 @@ import { SUITS, type GameState, type Player, type PlayerGameView, type Suit } fr
 interface LocalMatch {
   state: GameState;
   activePlayer: Player;
-  scores: Record<Player, number>;
 }
 
 export interface LocalMatchResponse {
@@ -29,7 +28,7 @@ function toResponse(match: LocalMatch): LocalMatchResponse {
   return {
     matchExists: true,
     activePlayer: match.activePlayer,
-    scores: { ...match.scores },
+    scores: { ...match.state.matchScores },
     view: getPlayerView(match.state, match.activePlayer),
   };
 }
@@ -66,7 +65,6 @@ export function createLocalGameRouter(): Router {
     match = {
       state,
       activePlayer: state.nonDealer,
-      scores: { player1: 0, player2: 0 },
     };
     response.status(201).json(toResponse(match));
   });

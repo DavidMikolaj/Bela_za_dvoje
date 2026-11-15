@@ -930,6 +930,37 @@ button.playing-card {
   text-align: center;
 }
 
+.zvanja-panel,
+.round-result {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(9, 25, 18, 0.72);
+}
+
+.zvanja-panel {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(240px, 1.2fr);
+  gap: 12px 24px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 18px 22px;
+  color: #f3f1df;
+}
+
+.zvanja-panel h2,
+.round-result h3 { margin: 0; }
+.zvanja-panel p,
+.round-result p { margin: 5px 0 0; color: #c4d2c8; }
+.zvanja-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.zvanja-list span { padding: 7px 10px; border-radius: 999px; background: rgba(213, 185, 102, .16); color: #f3df9c; font-size: 12px; }
+.round-result { margin: 12px 0; padding: 14px 16px; }
+.round-result small { display: block; margin-top: 6px; color: #c4d2c8; }
+.match-winner { color: #f3df9c; }
+
+@media (max-width: 620px) {
+  .zvanja-panel { grid-template-columns: 1fr; padding: 14px; }
+}
+
 .error-banner {
   margin: 0 0 14px;
   padding: 11px 14px;

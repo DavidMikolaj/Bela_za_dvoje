@@ -15,6 +15,7 @@ import type {
   TrickState,
 } from "./types.js";
 import { SUITS } from "./types.js";
+import { compareOrdinaryZvanja, detectOrdinaryZvanja, getCardPointValue, getMatchWinner, settleRoundScore, updateBela } from "./scoring.js";
 
 export class GameRuleError extends Error {
   constructor(message: string) {
@@ -41,6 +42,8 @@ export function dealGame(
   deck: readonly Card[] = shuffleDeck(createDeck()),
   roundNumber = 1,
   completedRounds: readonly CompletedRoundCards[] = [],
+  matchScores: Readonly<Record<Player, number>> = { player1: 0, player2: 0 },
+  matchWinner: Player | null = null,
 ): GameState {
   const dealer = getDealerForRound(roundNumber);
   const nonDealer = getNextDealer(dealer);
@@ -94,13 +97,26 @@ export function dealGame(
     phase: "bidding",
     players,
     faceUpCard,
+    originalFaceUpCard: faceUpCard,
+    faceUpExchangeChecked: false,
     faceDownStack,
     bidding: { turn: 1, selectedSuit: null, selectedBy: null },
     tricksPlayed: 0,
     currentTrick: { number: 1, cards: [], ledSuit: null, winner: null },
     awaitingTrickAcknowledgement: false,
     tricksWon: { player1: 0, player2: 0 },
+    trickPoints: { player1: 0, player2: 0 },
     collectedCards: { player1: [], player2: [] },
+    belaProgress: {
+      player1: { kingPlayed: false, queenPlayed: false, awarded: false },
+      player2: { kingPlayed: false, queenPlayed: false, awarded: false },
+    },
+    belaPoints: { player1: 0, player2: 0 },
+    ordinaryZvanjaByPlayer: { player1: [], player2: [] },
+    ordinaryZvanjaResult: null,
+    roundScore: null,
+    matchScores: { ...matchScores },
+    matchWinner,
     completedRounds: [...completedRounds],
   };
 }
@@ -130,6 +146,7 @@ export function startNextRound(
   ) {
     throw new GameRuleError("The current round must be complete or explicitly ended before starting the next round.");
   }
+  if (state.matchWinner) throw new GameRuleError("The match is complete.");
   const completedRounds = [...state.completedRounds];
   if (state.phase === "round-complete") {
     if (!state.bidding.selectedSuit) throw new GameRuleError("Completed round is missing its adut suit.");
@@ -142,9 +159,15 @@ export function startNextRound(
         player1: [...state.collectedCards.player1],
         player2: [...state.collectedCards.player2],
       },
+      ordinaryZvanjaByPlayer: {
+        player1: [...state.ordinaryZvanjaByPlayer.player1],
+        player2: [...state.ordinaryZvanjaByPlayer.player2],
+      },
+      ordinaryZvanjaResult: state.ordinaryZvanjaResult!,
+      score: state.roundScore!,
     });
   }
-  return dealGame(deck, state.roundNumber + 1, completedRounds);
+  return dealGame(deck, state.roundNumber + 1, completedRounds, state.matchScores, state.matchWinner);
 }
 
 /** Apply a suit selection or pass. Pass is represented by null. */
@@ -161,12 +184,19 @@ export function submitBid(state: GameState, player: Player, suit: Suit | null): 
   validateSuitForTurn(state.bidding.turn, state.faceUpCard.suit, suit);
 
   if (suit !== null) {
+    const exchangedState = exchangeFaceUpSeven(state);
+    const ordinaryZvanjaByPlayer = {
+      player1: detectOrdinaryZvanja([...exchangedState.players.player1.initialCards, ...exchangedState.players.player1.additionalCards]),
+      player2: detectOrdinaryZvanja([...exchangedState.players.player2.initialCards, ...exchangedState.players.player2.additionalCards]),
+    };
     return {
-      ...state,
+      ...exchangedState,
       phase: "playing",
       currentBidder: null,
       currentPlayer: state.nonDealer,
       bidding: { ...state.bidding, selectedSuit: suit, selectedBy: player },
+      ordinaryZvanjaByPlayer,
+      ordinaryZvanjaResult: compareOrdinaryZvanja(ordinaryZvanjaByPlayer, state.dealer, state.nonDealer),
     };
   }
 
@@ -179,6 +209,51 @@ export function submitBid(state: GameState, player: Player, suit: Suit | null): 
     currentBidder: playerForTurn(state, (state.bidding.turn + 1) as BiddingTurn),
     bidding: { ...state.bidding, turn: (state.bidding.turn + 1) as BiddingTurn },
   };
+}
+
+/** Exchange the original upcard for its matching Seven once, before the first trick. */
+function exchangeFaceUpSeven(state: GameState): GameState {
+  if (state.faceUpExchangeChecked) {
+    throw new GameRuleError("The face-up Seven exchange was already checked this round.");
+  }
+
+  const originalFaceUpCard = state.originalFaceUpCard;
+  if (originalFaceUpCard.rank === "7") {
+    return { ...state, faceUpExchangeChecked: true };
+  }
+
+  for (const player of [state.nonDealer, state.dealer]) {
+    const hand = state.players[player];
+    const initialIndex = hand.initialCards.findIndex(
+      (card) => card.suit === originalFaceUpCard.suit && card.rank === "7",
+    );
+    const additionalIndex = hand.additionalCards.findIndex(
+      (card) => card.suit === originalFaceUpCard.suit && card.rank === "7",
+    );
+    if (initialIndex < 0 && additionalIndex < 0) continue;
+
+    const seven = initialIndex >= 0
+      ? hand.initialCards[initialIndex]!
+      : hand.additionalCards[additionalIndex]!;
+    const updatedHand: PlayerHand = initialIndex >= 0
+      ? {
+          ...hand,
+          initialCards: hand.initialCards.map((card, index) => index === initialIndex ? originalFaceUpCard : card),
+        }
+      : {
+          ...hand,
+          additionalCards: hand.additionalCards.map((card, index) => index === additionalIndex ? originalFaceUpCard : card),
+        };
+
+    return {
+      ...state,
+      players: { ...state.players, [player]: updatedHand },
+      faceUpCard: seven,
+      faceUpExchangeChecked: true,
+    };
+  }
+
+  return { ...state, faceUpExchangeChecked: true };
 }
 
 /** Stronger ranks have a larger strength value within their own suit. */
@@ -254,34 +329,64 @@ export function playCard(state: GameState, player: Player, cardId: string): Game
   };
   const players = { ...state.players, [player]: updatedHand };
   const playedCards: PlayedCard[] = [...state.currentTrick.cards, { player, card }];
+  const belaResult = updateBela(state.belaProgress[player], state.belaPoints[player], card, state.bidding.selectedSuit);
+  const belaProgress = { ...state.belaProgress, [player]: belaResult.progress };
+  const belaPoints = { ...state.belaPoints, [player]: belaResult.points };
 
   if (playedCards.length === 1) {
     return {
       ...state,
       players,
+      belaProgress,
+      belaPoints,
       currentPlayer: otherPlayer(player),
       currentTrick: { ...state.currentTrick, cards: playedCards, ledSuit: card.suit },
     };
   }
 
   const winner = determineTrickWinner(playedCards, state.bidding.selectedSuit);
+  const adut = state.bidding.selectedSuit;
   const tricksPlayed = state.tricksPlayed + 1;
   const tricksWon = { ...state.tricksWon, [winner]: state.tricksWon[winner] + 1 };
   const collectedCards = {
     ...state.collectedCards,
     [winner]: [...state.collectedCards[winner], ...playedCards.map((played) => played.card)],
   };
+  const trickPoints = {
+    ...state.trickPoints,
+    [winner]: state.trickPoints[winner] + playedCards.reduce((sum, played) => sum + getCardPointValue(played.card, adut), 0),
+  };
+  const roundComplete = tricksPlayed === 10;
+  const roundScore = roundComplete
+    ? settleRoundScore({
+        caller: state.bidding.selectedBy!,
+        trickPoints,
+        ordinaryZvanjaPoints: state.ordinaryZvanjaResult?.pointsAwarded ?? { player1: 0, player2: 0 },
+        belaPoints,
+        tricksWon,
+        lastTrickWinner: winner,
+      })
+    : null;
+  const matchScores = roundScore
+    ? { player1: state.matchScores.player1 + roundScore.matchPointsAwarded.player1, player2: state.matchScores.player2 + roundScore.matchPointsAwarded.player2 }
+    : state.matchScores;
 
   return {
     ...state,
     players,
-    phase: tricksPlayed === 10 ? "round-complete" : "trick-complete",
+    phase: roundComplete ? "round-complete" : "trick-complete",
     currentPlayer: null,
     tricksPlayed,
     currentTrick: { ...state.currentTrick, cards: playedCards, winner },
     awaitingTrickAcknowledgement: true,
     tricksWon,
+    trickPoints,
     collectedCards,
+    belaProgress,
+    belaPoints,
+    roundScore,
+    matchScores,
+    matchWinner: roundComplete ? getMatchWinner(matchScores) : state.matchWinner,
   };
 }
 
@@ -363,10 +468,21 @@ export function getPlayerView(state: GameState, viewer: Player): PlayerGameView 
     currentTrick: state.currentTrick,
     awaitingTrickAcknowledgement: state.awaitingTrickAcknowledgement,
     tricksWon: state.tricksWon,
+    trickPoints: state.trickPoints,
     collectedCardCounts: {
       player1: state.collectedCards.player1.length,
       player2: state.collectedCards.player2.length,
     },
+    belaPoints: state.belaPoints,
+    ordinaryZvanjaByPlayer: state.phase === "round-complete"
+      ? state.ordinaryZvanjaByPlayer
+      : viewer === "player1"
+        ? { player1: state.ordinaryZvanjaByPlayer.player1, player2: [] }
+        : { player1: [], player2: state.ordinaryZvanjaByPlayer.player2 },
+    ordinaryZvanjaResult: state.phase === "round-complete" ? state.ordinaryZvanjaResult : null,
+    roundScore: state.phase === "round-complete" ? state.roundScore : null,
+    matchScores: state.matchScores,
+    matchWinner: state.matchWinner,
   };
 }
 

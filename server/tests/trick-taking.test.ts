@@ -13,6 +13,7 @@ import {
   submitBid,
 } from "../src/game/game-engine.js";
 import type { Card, Player, Rank, Suit } from "../src/game/types.js";
+import { getCardPointValue } from "../src/game/scoring.js";
 
 function card(suit: Suit, rank: Rank): Card {
   return { id: `${suit}-${rank}`, suit, rank };
@@ -148,10 +149,16 @@ describe("server-authoritative trick flow", () => {
     expect(view.currentTrick.cards[0]!.card).toEqual(played);
     expect(view.legalCardIds.length).toBeGreaterThan(0);
     expect(JSON.stringify(view)).not.toContain(hiddenCard.id);
+    expect(view.ordinaryZvanjaByPlayer[responsePlayer]).toEqual(state.ordinaryZvanjaByPlayer[responsePlayer]);
+    expect(view.ordinaryZvanjaByPlayer[opponent]).toEqual([]);
+    expect(view.ordinaryZvanjaResult).toBeNull();
   });
 
   it("plays exactly ten tricks, retains collections, and waits for acknowledgement before advancing", () => {
     let state = playingRound();
+    const expectedPlayedCardPoints = (["player1", "player2"] as const)
+      .flatMap((player) => hand(state, player))
+      .reduce((sum, card) => sum + getCardPointValue(card, state.bidding.selectedSuit!), 0);
 
     for (let trickIndex = 0; trickIndex < 10; trickIndex += 1) {
       expect(state.phase).toBe("playing");
@@ -181,6 +188,12 @@ describe("server-authoritative trick flow", () => {
     expect(state.phase).toBe("round-complete");
     expect(state.tricksPlayed).toBe(10);
     expect(state.tricksWon.player1 + state.tricksWon.player2).toBe(10);
+    expect(state.trickPoints.player1 + state.trickPoints.player2).toBe(expectedPlayedCardPoints);
+    expect(state.roundScore).not.toBeNull();
+    expect(state.roundScore!.lastTrickBonus.player1 + state.roundScore!.lastTrickBonus.player2).toBe(10);
+    expect(state.roundScore!.stigljaBonus.player1 + state.roundScore!.stigljaBonus.player2)
+      .toBe(state.tricksWon.player1 === 10 || state.tricksWon.player2 === 10 ? 90 : 0);
+    expect(state.matchScores.player1 + state.matchScores.player2).toBeGreaterThan(0);
     expect(state.players.player1.initialCards.length + state.players.player1.additionalCards.length).toBe(0);
     expect(state.players.player2.initialCards.length + state.players.player2.additionalCards.length).toBe(0);
     expect(state.awaitingTrickAcknowledgement).toBe(true);
@@ -190,10 +203,16 @@ describe("server-authoritative trick flow", () => {
     expect(state.phase).toBe("round-complete");
     expect(state.awaitingTrickAcknowledgement).toBe(false);
     expect(state.currentTrick.cards).toHaveLength(2);
+    const completedView = getPlayerView(state, state.nonDealer);
+    expect(completedView.ordinaryZvanjaResult).not.toBeNull();
+    expect(completedView.ordinaryZvanjaByPlayer.player1.length + completedView.ordinaryZvanjaByPlayer.player2.length)
+      .toBe(state.ordinaryZvanjaByPlayer.player1.length + state.ordinaryZvanjaByPlayer.player2.length);
     const nextRound = startNextRound(state, createDeck());
     expect(nextRound.completedRounds).toHaveLength(1);
     expect(nextRound.completedRounds[0]!.collectedCards.player1.length +
       nextRound.completedRounds[0]!.collectedCards.player2.length).toBe(20);
+    expect(nextRound.completedRounds[0]!.score).toEqual(state.roundScore);
+    expect(nextRound.matchScores).toEqual(state.matchScores);
     expect(nextRound.dealer).not.toBe(state.dealer);
   });
 

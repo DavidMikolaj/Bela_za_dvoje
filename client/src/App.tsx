@@ -157,7 +157,7 @@ function App() {
           <div>
             <p className="eyebrow">TWO PLAYER · MAĐARICE</p>
             <h1>The table is yours.</h1>
-            <p className="intro">A local hot-seat table for testing the deal and adut bidding.</p>
+          <p className="intro">A local hot-seat table for testing Bela from deal through round scoring.</p>
           </div>
           {match && (
             <div className="round-chip">
@@ -210,17 +210,17 @@ function App() {
             </section>
 
             <section className="scoreboard" aria-label="Scoreboard">
-              <div className="score-title"><span className="score-dot" /> SCOREBOARD <small>TEST SCORES</small></div>
-              <div className="score-player"><span>Player 1</span><strong>{match.scores.player1}</strong></div>
+              <div className="score-title"><span className="score-dot" /> MATCH SCORE <small>FIRST TO 1001</small></div>
+              <div className="score-player"><span>Player 1</span><strong>{view.matchScores.player1}</strong></div>
               <span className="score-divider">—</span>
-              <div className="score-player"><span>Player 2</span><strong>{match.scores.player2}</strong></div>
+              <div className="score-player"><span>Player 2</span><strong>{view.matchScores.player2}</strong></div>
             </section>
 
             <section className="trick-scoreboard" aria-label="Trick results">
-              <span className="trick-score-title">TRICKS WON</span>
-              <div><span>Player 1</span><strong>{view.tricksWon.player1}</strong><small>{view.collectedCardCounts.player1} cards collected</small></div>
+              <span className="trick-score-title">ROUND SCORE</span>
+              <div><span>Player 1</span><strong>{view.tricksWon.player1} tricks · {view.trickPoints.player1} pts</strong><small>{view.collectedCardCounts.player1} cards collected</small></div>
               <span className="score-divider">—</span>
-              <div><span>Player 2</span><strong>{view.tricksWon.player2}</strong><small>{view.collectedCardCounts.player2} cards collected</small></div>
+              <div><span>Player 2</span><strong>{view.tricksWon.player2} tricks · {view.trickPoints.player2} pts</strong><small>{view.collectedCardCounts.player2} cards collected</small></div>
               <span className="trick-progress">{view.tricksPlayed} / 10 tricks</span>
             </section>
 
@@ -291,7 +291,7 @@ function App() {
                       <h2>{view.currentPlayer === match.activePlayer
                         ? `${playerName(match.activePlayer)}, play a highlighted card`
                         : `Waiting for ${playerName(view.currentPlayer!)}`}</h2>
-                      <p className="small-note">Adut called by {playerName(view.bidding.selectedBy!)} · legal cards are highlighted</p>
+                      <p className="small-note">Adut called by {playerName(view.bidding.selectedBy!)} · legal cards are highlighted · Bela: {view.belaPoints[match.activePlayer]} pts</p>
                     </>
                   )}
                   {view.phase === "trick-complete" && (
@@ -313,7 +313,9 @@ function App() {
                     <>
                       <p className="eyebrow">ROUND COMPLETE · 10 TRICKS</p>
                       <h2>Round complete</h2>
-                      <p className="small-note">{view.tricksWon.player1} tricks for Player 1 · {view.tricksWon.player2} tricks for Player 2 · no points calculated</p>
+                      <p className="small-note">{view.tricksWon.player1} tricks for Player 1 · {view.tricksWon.player2} tricks for Player 2</p>
+                      {view.roundScore && <RoundResult view={view} />}
+                      {view.matchWinner && <h3 className="match-winner">{playerName(view.matchWinner)} wins the match!</h3>}
                       {view.awaitingTrickAcknowledgement && <button className="button button-primary trick-ack-button" onClick={() => void runAction(localGameApi.acknowledgeTrick)} disabled={busy}>Acknowledge final trick <span aria-hidden="true">→</span></button>}
                     </>
                   )}
@@ -333,7 +335,7 @@ function App() {
                 <button className="button button-subtle" onClick={() => void runAction(localGameApi.switchPlayer)} disabled={busy}>
                   Switch Player <span aria-hidden="true">↗</span>
                 </button>
-                {isEnded ? (
+                {isEnded && !view.matchWinner ? (
                   <button className="button button-primary" onClick={() => void runAction(localGameApi.startNextRound)} disabled={busy}>
                     Start Next Round <span aria-hidden="true">→</span>
                   </button>
@@ -344,12 +346,48 @@ function App() {
                 ) : null}
               </div>
             </section>
-            <p className="dev-disclaimer">Development-only hot-seat controls · not multiplayer authentication · scoring, zvanja and Bela announcements are not implemented.</p>
+            <ZvanjaPanel view={view} viewer={match.activePlayer} />
+            <p className="dev-disclaimer">Development-only hot-seat controls · not multiplayer authentication · no zvanja announcements or additional gameplay rules.</p>
           </>
         )}
       </div>
     </main>
   );
+}
+
+function ZvanjaPanel({ view, viewer }: { readonly view: PlayerGameView; readonly viewer: Player }) {
+  const isComplete = view.phase === "round-complete";
+  const evaluated = view.bidding.selectedSuit !== null;
+  const renderedPlayers: readonly Player[] = !evaluated ? [] : isComplete ? ["player1", "player2"] : [viewer];
+  return <section className="zvanja-panel" aria-label="Zvanja">
+    <div><h2>Zvanja & Bela</h2><p>{!evaluated ? "Zvanja are checked after adut selection and the Seven exchange." : isComplete ? "Both players’ melds are revealed after the round." : "Your zvanja only; opponent melds stay hidden until the round ends."}</p></div>
+    {renderedPlayers.map((player) => <div className="zvanja-player" key={player}>
+      <strong>{playerName(player)}</strong>
+      <div className="zvanja-list">
+        {view.ordinaryZvanjaByPlayer[player].length ? view.ordinaryZvanjaByPlayer[player].map((meld, index) => <span key={`${meld.kind}-${index}`}>
+          {meld.kind === "sequence" ? `${meld.sequenceLength}-card run` : `Four ${meld.rank}s`} · {meld.points} pts
+        </span>) : <span>No ordinary zvanja</span>}
+      </div>
+    </div>)}
+    {isComplete && view.ordinaryZvanjaResult && <p className="small-note">
+      Zvanja: {view.ordinaryZvanjaResult.winner ? `${playerName(view.ordinaryZvanjaResult.winner)} wins ${view.ordinaryZvanjaResult.pointsAwarded[view.ordinaryZvanjaResult.winner]} pts` : "no point-bearing zvanja"}
+      {` · Bela: ${view.belaPoints.player1}–${view.belaPoints.player2}`}
+    </p>}
+  </section>;
+}
+
+function RoundResult({ view }: { readonly view: PlayerGameView }) {
+  const score = view.roundScore!;
+  return <div className="round-result" aria-label="Round score breakdown">
+    <h3>{score.contractSucceeded ? "Contract succeeded" : "Contract failed"} · caller {playerName(score.caller)}</h3>
+    <p>Tricks: Player 1 {score.trickPoints.player1} · Player 2 {score.trickPoints.player2}</p>
+    <p>Zvanja: Player 1 {score.ordinaryZvanjaPoints.player1} · Player 2 {score.ordinaryZvanjaPoints.player2}</p>
+    <p>Bela: Player 1 {score.belaPoints.player1} · Player 2 {score.belaPoints.player2}</p>
+    <p>Last trick: Player 1 {score.lastTrickBonus.player1} · Player 2 {score.lastTrickBonus.player2}</p>
+    <p>Stiglja: Player 1 {score.stigljaBonus.player1} · Player 2 {score.stigljaBonus.player2}</p>
+    <p>Round totals: Player 1 {score.roundTotals.player1} · Player 2 {score.roundTotals.player2}</p>
+    <p>Match points: Player 1 +{score.matchPointsAwarded.player1} · Player 2 +{score.matchPointsAwarded.player2}</p>
+  </div>;
 }
 
 function phaseLabel(phase: PlayerGameView["phase"]): string {

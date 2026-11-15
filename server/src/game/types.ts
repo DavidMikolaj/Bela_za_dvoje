@@ -25,6 +25,41 @@ export interface BiddingState {
   readonly selectedBy: Player | null;
 }
 
+export type ZvanjeKind = "sequence" | "four-of-kind";
+
+export interface Zvanje {
+  readonly kind: ZvanjeKind;
+  readonly points: number;
+  readonly cards: readonly Card[];
+  readonly sequenceLength: number | null;
+  readonly highestRank: Rank | null;
+  readonly rank: Rank | null;
+}
+
+export interface OrdinaryZvanjaResult {
+  readonly winner: Player | null;
+  readonly pointsAwarded: Readonly<Record<Player, number>>;
+  readonly scoredByPlayer: Readonly<Record<Player, readonly Zvanje[]>>;
+}
+
+export interface BelaProgress {
+  readonly kingPlayed: boolean;
+  readonly queenPlayed: boolean;
+  readonly awarded: boolean;
+}
+
+export interface RoundScoreBreakdown {
+  readonly caller: Player;
+  readonly contractSucceeded: boolean;
+  readonly trickPoints: Readonly<Record<Player, number>>;
+  readonly ordinaryZvanjaPoints: Readonly<Record<Player, number>>;
+  readonly belaPoints: Readonly<Record<Player, number>>;
+  readonly lastTrickBonus: Readonly<Record<Player, number>>;
+  readonly stigljaBonus: Readonly<Record<Player, number>>;
+  readonly roundTotals: Readonly<Record<Player, number>>;
+  readonly matchPointsAwarded: Readonly<Record<Player, number>>;
+}
+
 export interface PlayedCard {
   readonly player: Player;
   readonly card: Card;
@@ -43,6 +78,9 @@ export interface CompletedRoundCards {
   readonly adut: Suit;
   readonly tricksWon: Readonly<Record<Player, number>>;
   readonly collectedCards: Readonly<Record<Player, readonly Card[]>>;
+  readonly ordinaryZvanjaByPlayer: Readonly<Record<Player, readonly Zvanje[]>>;
+  readonly ordinaryZvanjaResult: OrdinaryZvanjaResult;
+  readonly score: RoundScoreBreakdown;
 }
 
 /** Complete server-side state. Do not send this object to a player. */
@@ -56,6 +94,9 @@ export interface GameState {
   readonly phase: GamePhase;
   readonly players: Readonly<Record<Player, PlayerHand>>;
   readonly faceUpCard: Card;
+  /** Original upcard retained privately for the once-per-round Seven exchange. */
+  readonly originalFaceUpCard: Card;
+  readonly faceUpExchangeChecked: boolean;
   /** The eleven cards stacked face-down over the face-up card. */
   readonly faceDownStack: readonly Card[];
   readonly bidding: BiddingState;
@@ -63,8 +104,17 @@ export interface GameState {
   readonly currentTrick: TrickState;
   readonly awaitingTrickAcknowledgement: boolean;
   readonly tricksWon: Readonly<Record<Player, number>>;
+  readonly trickPoints: Readonly<Record<Player, number>>;
   /** Cards won in tricks this round; retained for later scoring work. */
   readonly collectedCards: Readonly<Record<Player, readonly Card[]>>;
+  readonly belaProgress: Readonly<Record<Player, BelaProgress>>;
+  readonly belaPoints: Readonly<Record<Player, number>>;
+  /** Zvanja are detected after the upcard exchange; kept private until round end. */
+  readonly ordinaryZvanjaByPlayer: Readonly<Record<Player, readonly Zvanje[]>>;
+  readonly ordinaryZvanjaResult: OrdinaryZvanjaResult | null;
+  readonly roundScore: RoundScoreBreakdown | null;
+  readonly matchScores: Readonly<Record<Player, number>>;
+  readonly matchWinner: Player | null;
   /** Completed played rounds are retained when the next deal begins. */
   readonly completedRounds: readonly CompletedRoundCards[];
 }
@@ -97,5 +147,13 @@ export interface PlayerGameView {
   readonly currentTrick: TrickState;
   readonly awaitingTrickAcknowledgement: boolean;
   readonly tricksWon: Readonly<Record<Player, number>>;
+  readonly trickPoints: Readonly<Record<Player, number>>;
   readonly collectedCardCounts: Readonly<Record<Player, number>>;
+  readonly belaPoints: Readonly<Record<Player, number>>;
+  /** Opponent zvanja are withheld until the round has ended. */
+  readonly ordinaryZvanjaByPlayer: Readonly<Record<Player, readonly Zvanje[]>>;
+  readonly ordinaryZvanjaResult: OrdinaryZvanjaResult | null;
+  readonly roundScore: RoundScoreBreakdown | null;
+  readonly matchScores: Readonly<Record<Player, number>>;
+  readonly matchWinner: Player | null;
 }

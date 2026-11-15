@@ -208,7 +208,8 @@ describe("adut bidding", () => {
     expect(selected.phase).toBe("playing");
     expect(selected.currentPlayer).toBe(selected.nonDealer);
     expect(selected.bidding).toEqual({ turn: 4, selectedSuit: alternateSuit, selectedBy: "player1" });
-    expect(selected.players).toBe(state.players);
+    expect(selected.faceUpExchangeChecked).toBe(true);
+    expect(selected.players).not.toBe(state.players);
   });
 
   it("ends bidding immediately when a player accepts the face-up suit", () => {

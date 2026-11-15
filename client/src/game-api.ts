@@ -10,6 +10,33 @@ export interface Card {
   readonly rank: "7" | "8" | "9" | "10" | "J" | "Q" | "K" | "A";
 }
 
+export interface Zvanje {
+  readonly kind: "sequence" | "four-of-kind";
+  readonly points: number;
+  readonly cards: readonly Card[];
+  readonly sequenceLength: number | null;
+  readonly highestRank: Card["rank"] | null;
+  readonly rank: Card["rank"] | null;
+}
+
+export interface RoundScoreBreakdown {
+  readonly caller: Player;
+  readonly contractSucceeded: boolean;
+  readonly trickPoints: Readonly<Record<Player, number>>;
+  readonly ordinaryZvanjaPoints: Readonly<Record<Player, number>>;
+  readonly belaPoints: Readonly<Record<Player, number>>;
+  readonly lastTrickBonus: Readonly<Record<Player, number>>;
+  readonly stigljaBonus: Readonly<Record<Player, number>>;
+  readonly roundTotals: Readonly<Record<Player, number>>;
+  readonly matchPointsAwarded: Readonly<Record<Player, number>>;
+}
+
+export interface OrdinaryZvanjaResult {
+  readonly winner: Player | null;
+  readonly pointsAwarded: Readonly<Record<Player, number>>;
+  readonly scoredByPlayer: Readonly<Record<Player, readonly Zvanje[]>>;
+}
+
 export interface PlayerGameView {
   readonly roundNumber: number;
   readonly dealer: Player;
@@ -42,6 +69,13 @@ export interface PlayerGameView {
   readonly awaitingTrickAcknowledgement: boolean;
   readonly tricksWon: Readonly<Record<Player, number>>;
   readonly collectedCardCounts: Readonly<Record<Player, number>>;
+  readonly trickPoints: Readonly<Record<Player, number>>;
+  readonly belaPoints: Readonly<Record<Player, number>>;
+  readonly ordinaryZvanjaByPlayer: Readonly<Record<Player, readonly Zvanje[]>>;
+  readonly ordinaryZvanjaResult: OrdinaryZvanjaResult | null;
+  readonly roundScore: RoundScoreBreakdown | null;
+  readonly matchScores: Readonly<Record<Player, number>>;
+  readonly matchWinner: Player | null;
 }
 
 export type LocalMatchSnapshot =
