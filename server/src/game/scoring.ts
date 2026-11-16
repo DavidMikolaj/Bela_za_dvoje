@@ -1,12 +1,12 @@
 import type {
   BelaProgress,
   Card,
-  OrdinaryZvanjaResult,
+  DeclarationComparisonResult,
   Player,
   Rank,
   RoundScoreBreakdown,
   Suit,
-  Zvanje,
+  Declaration,
 } from "./types.js";
 
 const PLAYERS: readonly Player[] = ["player1", "player2"];
@@ -23,8 +23,8 @@ export function getCardPointValue(card: Card, adut: Suit): number {
 }
 
 /** Detect maximal same-suit runs and point-bearing quads without mutating the hand. */
-export function detectOrdinaryZvanja(hand: readonly Card[]): Zvanje[] {
-  const found: Zvanje[] = [];
+export function detectDeclarations(hand: readonly Card[]): Declaration[] {
+  const found: Declaration[] = [];
   const suits = [...new Set(hand.map(({ suit }) => suit))];
   for (const suit of suits) {
     const suited = hand.filter((card) => card.suit === suit).sort((a, b) => rankIndex(a.rank) - rankIndex(b.rank));
@@ -53,7 +53,7 @@ export function detectOrdinaryZvanja(hand: readonly Card[]): Zvanje[] {
   return found;
 }
 
-function strengthCompare(left: Zvanje, right: Zvanje): number {
+function strengthCompare(left: Declaration, right: Declaration): number {
   if (left.points !== right.points) return left.points - right.points;
   if (left.kind === "sequence" && right.kind === "sequence") {
     if (left.sequenceLength !== right.sequenceLength) return left.sequenceLength! - right.sequenceLength!;
@@ -62,22 +62,22 @@ function strengthCompare(left: Zvanje, right: Zvanje): number {
   return 0;
 }
 
-function keyFor(zvanje: Zvanje): string {
-  return zvanje.cards.map(({ id }) => id).sort().join("|");
+function keyFor(declaration: Declaration): string {
+  return declaration.cards.map(({ id }) => id).sort().join("|");
 }
 
-/** Resolve the strongest individual zvanje, then score the winner's best disjoint set. */
-export function compareOrdinaryZvanja(
-  detectedByPlayer: Readonly<Record<Player, readonly Zvanje[]>>,
+/** Resolve the strongest individual declaration, then score the winner's best disjoint set. */
+export function compareDeclarations(
+  detectedByPlayer: Readonly<Record<Player, readonly Declaration[]>>,
   dealer: Player,
   nonDealer: Player,
-): OrdinaryZvanjaResult {
+): DeclarationComparisonResult {
   const eligible = {
-    player1: detectedByPlayer.player1.filter((meld) => meld.points > 0),
-    player2: detectedByPlayer.player2.filter((meld) => meld.points > 0),
+    player1: detectedByPlayer.player1.filter((declaration) => declaration.points > 0),
+    player2: detectedByPlayer.player2.filter((declaration) => declaration.points > 0),
   };
-  const best = (player: Player) => eligible[player].reduce<Zvanje | null>(
-    (current, meld) => current === null || strengthCompare(meld, current) > 0 ? meld : current,
+  const best = (player: Player) => eligible[player].reduce<Declaration | null>(
+    (current, declaration) => current === null || strengthCompare(declaration, current) > 0 ? declaration : current,
     null,
   );
   const firstBest = best("player1");
@@ -91,13 +91,13 @@ export function compareOrdinaryZvanja(
   }
 
   const pointsAwarded: Record<Player, number> = { player1: 0, player2: 0 };
-  const scoredByPlayer: Record<Player, readonly Zvanje[]> = { player1: [], player2: [] };
+  const scoredByPlayer: Record<Player, readonly Declaration[]> = { player1: [], player2: [] };
   if (winner) {
-    const melds = eligible[winner];
+    const declarations = eligible[winner];
     let bestTotal = -1;
-    let bestSet: Zvanje[] = [];
-    const visit = (index: number, used: Set<string>, picked: Zvanje[], total: number) => {
-      if (index === melds.length) {
+    let bestSet: Declaration[] = [];
+    const visit = (index: number, used: Set<string>, picked: Declaration[], total: number) => {
+      if (index === declarations.length) {
         const pickedKey = picked.map(keyFor).sort().join(";");
         const bestKey = bestSet.map(keyFor).sort().join(";");
         if (total > bestTotal || (total === bestTotal && pickedKey < bestKey)) {
@@ -107,17 +107,17 @@ export function compareOrdinaryZvanja(
         return;
       }
       visit(index + 1, used, picked, total);
-      const meld = melds[index]!;
-      if (meld.cards.some(({ id }) => used.has(id))) return;
+      const declaration = declarations[index]!;
+      if (declaration.cards.some(({ id }) => used.has(id))) return;
       const next = new Set(used);
-      meld.cards.forEach(({ id }) => next.add(id));
-      visit(index + 1, next, [...picked, meld], total + meld.points);
+      declaration.cards.forEach(({ id }) => next.add(id));
+      visit(index + 1, next, [...picked, declaration], total + declaration.points);
     };
     visit(0, new Set(), [], 0);
     pointsAwarded[winner] = Math.max(0, bestTotal);
     scoredByPlayer[winner] = bestSet;
   }
-  // Parameters document the bidding roles; equal strongest melds go to the non-dealer.
+  // Parameters document the bidding roles; equal strongest declarations go to the non-dealer.
   void dealer;
   return { winner, pointsAwarded, scoredByPlayer };
 }
@@ -142,7 +142,7 @@ export function updateBela(
 export function settleRoundScore(input: {
   readonly caller: Player;
   readonly trickPoints: Readonly<Record<Player, number>>;
-  readonly ordinaryZvanjaPoints: Readonly<Record<Player, number>>;
+  readonly declarationPoints: Readonly<Record<Player, number>>;
   readonly belaPoints: Readonly<Record<Player, number>>;
   readonly tricksWon: Readonly<Record<Player, number>>;
   readonly lastTrickWinner: Player;
@@ -153,7 +153,7 @@ export function settleRoundScore(input: {
   if (input.tricksWon.player1 === 10) stigljaBonus.player1 = 90;
   if (input.tricksWon.player2 === 10) stigljaBonus.player2 = 90;
   const roundTotals = Object.fromEntries(PLAYERS.map((player) => [player,
-    input.trickPoints[player] + input.ordinaryZvanjaPoints[player] + input.belaPoints[player] + lastTrickBonus[player] + stigljaBonus[player],
+    input.trickPoints[player] + input.declarationPoints[player] + input.belaPoints[player] + lastTrickBonus[player] + stigljaBonus[player],
   ])) as Record<Player, number>;
   const opponent: Player = input.caller === "player1" ? "player2" : "player1";
   const contractSucceeded = roundTotals[input.caller] > roundTotals[opponent];
@@ -165,7 +165,7 @@ export function settleRoundScore(input: {
     caller: input.caller,
     contractSucceeded,
     trickPoints: { ...input.trickPoints },
-    ordinaryZvanjaPoints: { ...input.ordinaryZvanjaPoints },
+    declarationPoints: { ...input.declarationPoints },
     belaPoints: { ...input.belaPoints },
     lastTrickBonus,
     stigljaBonus,

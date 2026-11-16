@@ -76,7 +76,7 @@ describe("local hot-seat game API", () => {
 
     const wrongPlayer = await json("/match/bid", "POST", { suit: created.view.faceUpCard.suit });
     expect(wrongPlayer.response.status).toBe(400);
-    expect(wrongPlayer.payload.error).toMatch(/turn/i);
+    expect(wrongPlayer.payload.error).toMatch(/red na igrača/i);
     expect(wrongPlayer.payload).not.toHaveProperty("view");
 
     await json("/match/switch-player", "POST");

@@ -570,49 +570,10 @@ button.playing-card {
   opacity: 0.42;
 }
 
-.card-rank {
-  position: absolute;
-  top: 7px;
-  left: 7px;
-  font-family: "Playfair Display", Georgia, serif;
-  font-size: 19px;
-  line-height: 1;
-}
-
-.card-suit {
-  position: absolute;
-  right: 5px;
-  bottom: 7px;
-  left: 5px;
-  font-family: "DM Sans", sans-serif;
-  font-size: 9px;
-  font-weight: 700;
-  text-align: center;
-}
-
-.card-corner {
-  position: absolute;
-  right: 7px;
-  top: 7px;
-  color: rgba(34, 47, 39, 0.47);
-  font-size: 9px;
-}
-
-.suit-heart {
-  color: #963f38;
-}
-
-.suit-gourd {
-  color: #92642d;
-}
-
-.suit-acorn {
-  color: #403b33;
-}
-
-.suit-leaf {
-  color: #32634d;
-}
+.card-artwork { display: block; width: 100%; height: 100%; object-fit: fill; pointer-events: none; }
+.card-image-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: space-between; flex-direction: column; padding: 8px 4px; color: #25362d; font-family: "DM Sans", sans-serif; font-size: 9px; text-align: center; }
+.card-image-fallback strong { font-family: "Playfair Display", Georgia, serif; font-size: 22px; }
+.card-back .card-image-fallback { justify-content: center; color: #d6e6ce; font-family: "Playfair Display", Georgia, serif; font-size: 13px; font-weight: 600; letter-spacing: 1px; }
 
 .card-back {
   display: grid;
@@ -626,7 +587,7 @@ button.playing-card {
   box-shadow: 0 4px 8px rgba(4, 24, 15, 0.2), inset 0 0 0 3px rgba(11, 48, 31, 0.52);
 }
 
-.card-back span {
+.card-back .card-image-fallback {
   padding: 3px 4px;
   border: 1px solid rgba(225, 239, 208, 0.48);
   border-radius: 4px;
@@ -812,15 +773,6 @@ button.playing-card {
   transform: rotate(2deg);
 }
 
-.upcard-wrap .card-rank {
-  font-size: 22px;
-}
-
-.upcard-wrap .card-suit {
-  bottom: 9px;
-  font-size: 10px;
-}
-
 .bidding-panel {
   grid-column: 1 / -1;
   min-height: 98px;
@@ -930,16 +882,22 @@ button.playing-card {
   text-align: center;
 }
 
-.zvanja-panel,
+.adut-banner { display: flex; align-items: center; gap: 11px; width: fit-content; margin: 0 auto 13px; padding: 8px 14px; border: 1px solid rgba(223, 200, 126, .32); border-radius: 10px; color: #f4e7b7; background: rgba(213, 185, 102, .1); }
+.adut-banner img { width: 27px; height: 27px; object-fit: contain; }
+.adut-banner small, .adut-banner strong { display: block; }
+.adut-banner small { color: #cbbf96; font-size: 7px; letter-spacing: 1px; }
+.adut-banner strong { margin-top: 2px; font-size: 13px; text-transform: lowercase; }
+
+.declarations-panel,
 .round-result {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
   background: rgba(9, 25, 18, 0.72);
 }
 
-.zvanja-panel {
+.declarations-panel {
   display: grid;
-  grid-template-columns: minmax(180px, 0.8fr) minmax(240px, 1.2fr);
+  grid-template-columns: 1fr;
   gap: 12px 24px;
   align-items: center;
   margin-top: 16px;
@@ -947,18 +905,22 @@ button.playing-card {
   color: #f3f1df;
 }
 
-.zvanja-panel h2,
+.declarations-player { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; align-items: center; }
+.declarations-player > strong { color: #f3df9c; font-size: 13px; }
+.declarations-pending { grid-column: 1 / -1; }
+.declarations-panel h2,
 .round-result h3 { margin: 0; }
-.zvanja-panel p,
+.declarations-panel p,
 .round-result p { margin: 5px 0 0; color: #c4d2c8; }
-.zvanja-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.zvanja-list span { padding: 7px 10px; border-radius: 999px; background: rgba(213, 185, 102, .16); color: #f3df9c; font-size: 12px; }
+.declarations-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.declarations-list span { padding: 7px 10px; border-radius: 999px; background: rgba(213, 185, 102, .16); color: #f3df9c; font-size: 12px; }
 .round-result { margin: 12px 0; padding: 14px 16px; }
 .round-result small { display: block; margin-top: 6px; color: #c4d2c8; }
 .match-winner { color: #f3df9c; }
 
 @media (max-width: 620px) {
-  .zvanja-panel { grid-template-columns: 1fr; padding: 14px; }
+  .declarations-panel { grid-template-columns: 1fr; padding: 14px; }
+  .declarations-player { grid-template-columns: 1fr; }
 }
 
 .error-banner {
@@ -1114,26 +1076,7 @@ button.playing-card {
     border-radius: 6px;
   }
 
-  .card-rank {
-    top: 6px;
-    left: 6px;
-    font-size: 16px;
-  }
-
-  .card-suit {
-    right: 3px;
-    bottom: 6px;
-    left: 3px;
-    font-size: 8px;
-  }
-
-  .card-corner {
-    top: 6px;
-    right: 6px;
-    font-size: 8px;
-  }
-
-  .card-back span {
+  .card-back .card-image-fallback {
     padding: 2px 3px;
     font-size: 9px;
   }
@@ -1173,15 +1116,6 @@ button.playing-card {
   .upcard-wrap .playing-card {
     width: 51px;
     height: 74px;
-  }
-
-  .upcard-wrap .card-rank {
-    font-size: 17px;
-  }
-
-  .upcard-wrap .card-suit {
-    bottom: 7px;
-    font-size: 8px;
   }
 
   .bidding-panel {

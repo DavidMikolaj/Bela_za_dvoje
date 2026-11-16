@@ -129,8 +129,8 @@ describe("server-authoritative trick flow", () => {
     const opponent = state.dealer;
     state = playCard(state, leader, "srce-7");
 
-    expect(() => playCard(state, opponent, "srce-7")).toThrow(/not in this player's hand/i);
-    expect(() => playCard(state, opponent, "tikva-8")).toThrow(/not a legal play/i);
+    expect(() => playCard(state, opponent, "srce-7")).toThrow(/nije u vašoj ruci/i);
+    expect(() => playCard(state, opponent, "tikva-8")).toThrow(/nije dopušten potez/i);
     expect(state.currentTrick.cards).toHaveLength(1);
   });
 
@@ -143,15 +143,15 @@ describe("server-authoritative trick flow", () => {
     const responsePlayer = state.currentPlayer!;
     const view = getPlayerView(state, responsePlayer);
     const opponent = responsePlayer === "player1" ? "player2" : "player1";
-    const hiddenCard = hand(state, opponent)[0]!;
     expect(view.hands[opponent].cards).toEqual([]);
     expect(view.hands[responsePlayer].cards).toHaveLength(10);
     expect(view.currentTrick.cards[0]!.card).toEqual(played);
     expect(view.legalCardIds.length).toBeGreaterThan(0);
-    expect(JSON.stringify(view)).not.toContain(hiddenCard.id);
-    expect(view.ordinaryZvanjaByPlayer[responsePlayer]).toEqual(state.ordinaryZvanjaByPlayer[responsePlayer]);
-    expect(view.ordinaryZvanjaByPlayer[opponent]).toEqual([]);
-    expect(view.ordinaryZvanjaResult).toBeNull();
+    expect(view.declarationsByPlayer).toEqual(state.declarationsByPlayer);
+    expect(view.declarationComparisonResult).toBeNull();
+    const visibleDeclarationIds = Object.values(view.declarationsByPlayer).flatMap((declarations) => declarations.flatMap((declaration) => declaration.cards.map(({ id }) => id)));
+    const hiddenUndeclaredCard = hand(state, opponent).find(({ id }) => !visibleDeclarationIds.includes(id));
+    if (hiddenUndeclaredCard) expect(JSON.stringify(view)).not.toContain(hiddenUndeclaredCard.id);
   });
 
   it("plays exactly ten tricks, retains collections, and waits for acknowledgement before advancing", () => {
@@ -204,9 +204,9 @@ describe("server-authoritative trick flow", () => {
     expect(state.awaitingTrickAcknowledgement).toBe(false);
     expect(state.currentTrick.cards).toHaveLength(2);
     const completedView = getPlayerView(state, state.nonDealer);
-    expect(completedView.ordinaryZvanjaResult).not.toBeNull();
-    expect(completedView.ordinaryZvanjaByPlayer.player1.length + completedView.ordinaryZvanjaByPlayer.player2.length)
-      .toBe(state.ordinaryZvanjaByPlayer.player1.length + state.ordinaryZvanjaByPlayer.player2.length);
+    expect(completedView.declarationComparisonResult).not.toBeNull();
+    expect(completedView.declarationsByPlayer.player1.length + completedView.declarationsByPlayer.player2.length)
+      .toBe(state.declarationsByPlayer.player1.length + state.declarationsByPlayer.player2.length);
     const nextRound = startNextRound(state, createDeck());
     expect(nextRound.completedRounds).toHaveLength(1);
     expect(nextRound.completedRounds[0]!.collectedCards.player1.length +
@@ -218,7 +218,7 @@ describe("server-authoritative trick flow", () => {
 
   it("rejects a player action from the wrong turn", () => {
     const state = playingRound();
-    expect(() => playCard(state, state.dealer, hand(state, state.dealer)[0]!.id)).toThrow(/turn to play/i);
+    expect(() => playCard(state, state.dealer, hand(state, state.dealer)[0]!.id)).toThrow(/red na igrača .* da odigra kartu/i);
   });
 
   it("does not allow ending a test while a completed trick awaits acknowledgement", () => {
@@ -228,6 +228,6 @@ describe("server-authoritative trick flow", () => {
     const secondPlayer = state.currentPlayer!;
     const response = getLegalCards(hand(state, secondPlayer), state.currentTrick.cards, state.bidding.selectedSuit!)[0]!;
     state = playCard(state, secondPlayer, response.id);
-    expect(() => endTestRound(state)).toThrow(/bidding or card play/i);
+    expect(() => endTestRound(state)).toThrow(/odabira aduta ili igranja karata/i);
   });
 });

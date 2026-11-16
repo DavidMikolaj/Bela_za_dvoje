@@ -39,7 +39,7 @@ function sendError(response: Response, error: unknown): void {
     return;
   }
   console.error("Local game API error:", error);
-  response.status(500).json({ error: "The local game request failed." });
+  response.status(500).json({ error: "Zahtjev za lokalnu igru nije uspio." });
 }
 
 function otherPlayer(player: Player): Player {
@@ -70,7 +70,7 @@ export function createLocalGameRouter(): Router {
   });
 
   router.post("/match/round", (_request, response) => {
-    if (!match) return response.status(404).json({ error: "No local match exists." });
+    if (!match) return response.status(404).json({ error: "Lokalna partija ne postoji." });
     try {
       match.state = startNextRound(match.state);
       match.activePlayer = match.state.nonDealer;
@@ -81,10 +81,10 @@ export function createLocalGameRouter(): Router {
   });
 
   router.post("/match/bid", (request, response) => {
-    if (!match) return response.status(404).json({ error: "No local match exists." });
+    if (!match) return response.status(404).json({ error: "Lokalna partija ne postoji." });
     const submittedSuit: unknown = request.body?.suit;
     if (submittedSuit !== null && !SUITS.includes(submittedSuit as Suit)) {
-      response.status(400).json({ error: "Choose an allowed suit or pass." });
+      response.status(400).json({ error: "Odaberite dopuštenu boju aduta ili prođite." });
       return;
     }
 
@@ -99,16 +99,16 @@ export function createLocalGameRouter(): Router {
   });
 
   router.post("/match/switch-player", (_request, response) => {
-    if (!match) return response.status(404).json({ error: "No local match exists." });
+    if (!match) return response.status(404).json({ error: "Lokalna partija ne postoji." });
     match.activePlayer = otherPlayer(match.activePlayer);
     response.json(toResponse(match));
   });
 
   router.post("/match/play", (request, response) => {
-    if (!match) return response.status(404).json({ error: "No local match exists." });
+    if (!match) return response.status(404).json({ error: "Lokalna partija ne postoji." });
     const cardId: unknown = request.body?.cardId;
     if (typeof cardId !== "string") {
-      response.status(400).json({ error: "Choose a card from your visible hand." });
+      response.status(400).json({ error: "Odaberite kartu iz svoje vidljive ruke." });
       return;
     }
     try {
@@ -121,7 +121,7 @@ export function createLocalGameRouter(): Router {
   });
 
   router.post("/match/acknowledge-trick", (_request, response) => {
-    if (!match) return response.status(404).json({ error: "No local match exists." });
+    if (!match) return response.status(404).json({ error: "Lokalna partija ne postoji." });
     try {
       match.state = acknowledgeTrick(match.state);
       if (match.state.currentPlayer) match.activePlayer = match.state.currentPlayer;
@@ -132,7 +132,7 @@ export function createLocalGameRouter(): Router {
   });
 
   router.post("/match/end-test-round", (_request, response) => {
-    if (!match) return response.status(404).json({ error: "No local match exists." });
+    if (!match) return response.status(404).json({ error: "Lokalna partija ne postoji." });
     try {
       match.state = endTestRound(match.state);
       response.json(toResponse(match));

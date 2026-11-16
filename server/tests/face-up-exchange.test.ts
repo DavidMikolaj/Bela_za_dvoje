@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createDeck } from "../src/game/cards.js";
 import { dealGame, getPlayerView, playCard, submitBid } from "../src/game/game-engine.js";
 import { SUITS, type Card, type Player, type Suit } from "../src/game/types.js";
-import { detectOrdinaryZvanja } from "../src/game/scoring.js";
+import { detectDeclarations } from "../src/game/scoring.js";
 
 function selectAdut(state: ReturnType<typeof dealGame>, adut: Suit) {
   if (adut === state.originalFaceUpCard.suit) {
@@ -64,17 +64,17 @@ describe("face-up Seven exchange", () => {
     }
   });
 
-  it("evaluates zvanja from the exchanged hands before play begins", () => {
+  it("evaluates declarations from the exchanged hands before play begins", () => {
     const deck = createDeck();
     // Put srce-10 face-up; Player 2's srce-7, 8, 9 become 10, 8, 9 after exchange.
     [deck[3], deck[12]] = [deck[12]!, deck[3]!];
     const dealt = dealGame(deck);
     const selected = selectAdut(dealt, "srce");
-    const expected = detectOrdinaryZvanja(handCards(selected, dealt.nonDealer));
+    const expected = detectDeclarations(handCards(selected, dealt.nonDealer));
 
     expect(selected.faceUpExchangeChecked).toBe(true);
-    expect(selected.ordinaryZvanjaByPlayer[dealt.nonDealer]).toEqual(expected);
-    expect(expected.some((meld) => meld.kind === "sequence" && meld.cards.some(({ id }) => id === "srce-10"))).toBe(true);
+    expect(selected.declarationsByPlayer[dealt.nonDealer]).toEqual(expected);
+    expect(expected.some((declaration) => declaration.kind === "sequence" && declaration.cards.some(({ id }) => id === "srce-10"))).toBe(true);
   });
 
   it("exchanges the card when the dealer, rather than the non-dealer, holds the matching Seven", () => {
@@ -126,7 +126,7 @@ describe("face-up Seven exchange", () => {
     const opponentView = getPlayerView(selected, opponent);
 
     expect(opponentView.hands[recipient].cards).toEqual([]);
-    expect(JSON.stringify(opponentView)).not.toContain(dealt.originalFaceUpCard.id);
+    expect(opponentView.declarationsByPlayer).toEqual(selected.declarationsByPlayer);
     expect(opponentView).not.toHaveProperty("exchangePlayer");
   });
 });

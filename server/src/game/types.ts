@@ -25,10 +25,10 @@ export interface BiddingState {
   readonly selectedBy: Player | null;
 }
 
-export type ZvanjeKind = "sequence" | "four-of-kind";
+export type DeclarationKind = "sequence" | "four-of-kind";
 
-export interface Zvanje {
-  readonly kind: ZvanjeKind;
+export interface Declaration {
+  readonly kind: DeclarationKind;
   readonly points: number;
   readonly cards: readonly Card[];
   readonly sequenceLength: number | null;
@@ -36,10 +36,10 @@ export interface Zvanje {
   readonly rank: Rank | null;
 }
 
-export interface OrdinaryZvanjaResult {
+export interface DeclarationComparisonResult {
   readonly winner: Player | null;
   readonly pointsAwarded: Readonly<Record<Player, number>>;
-  readonly scoredByPlayer: Readonly<Record<Player, readonly Zvanje[]>>;
+  readonly scoredByPlayer: Readonly<Record<Player, readonly Declaration[]>>;
 }
 
 export interface BelaProgress {
@@ -52,7 +52,7 @@ export interface RoundScoreBreakdown {
   readonly caller: Player;
   readonly contractSucceeded: boolean;
   readonly trickPoints: Readonly<Record<Player, number>>;
-  readonly ordinaryZvanjaPoints: Readonly<Record<Player, number>>;
+  readonly declarationPoints: Readonly<Record<Player, number>>;
   readonly belaPoints: Readonly<Record<Player, number>>;
   readonly lastTrickBonus: Readonly<Record<Player, number>>;
   readonly stigljaBonus: Readonly<Record<Player, number>>;
@@ -78,8 +78,8 @@ export interface CompletedRoundCards {
   readonly adut: Suit;
   readonly tricksWon: Readonly<Record<Player, number>>;
   readonly collectedCards: Readonly<Record<Player, readonly Card[]>>;
-  readonly ordinaryZvanjaByPlayer: Readonly<Record<Player, readonly Zvanje[]>>;
-  readonly ordinaryZvanjaResult: OrdinaryZvanjaResult;
+  readonly declarationsByPlayer: Readonly<Record<Player, readonly Declaration[]>>;
+  readonly declarationComparisonResult: DeclarationComparisonResult;
   readonly score: RoundScoreBreakdown;
 }
 
@@ -109,9 +109,9 @@ export interface GameState {
   readonly collectedCards: Readonly<Record<Player, readonly Card[]>>;
   readonly belaProgress: Readonly<Record<Player, BelaProgress>>;
   readonly belaPoints: Readonly<Record<Player, number>>;
-  /** Zvanja are detected after the upcard exchange; kept private until round end. */
-  readonly ordinaryZvanjaByPlayer: Readonly<Record<Player, readonly Zvanje[]>>;
-  readonly ordinaryZvanjaResult: OrdinaryZvanjaResult | null;
+  /** Public declarations are detected after the upcard exchange; the full hands remain private. */
+  readonly declarationsByPlayer: Readonly<Record<Player, readonly Declaration[]>>;
+  readonly declarationComparisonResult: DeclarationComparisonResult | null;
   readonly roundScore: RoundScoreBreakdown | null;
   readonly matchScores: Readonly<Record<Player, number>>;
   readonly matchWinner: Player | null;
@@ -150,9 +150,9 @@ export interface PlayerGameView {
   readonly trickPoints: Readonly<Record<Player, number>>;
   readonly collectedCardCounts: Readonly<Record<Player, number>>;
   readonly belaPoints: Readonly<Record<Player, number>>;
-  /** Opponent zvanja are withheld until the round has ended. */
-  readonly ordinaryZvanjaByPlayer: Readonly<Record<Player, readonly Zvanje[]>>;
-  readonly ordinaryZvanjaResult: OrdinaryZvanjaResult | null;
+  /** Both players' publicly declared declarations are visible; comparison stays private until round end. */
+  readonly declarationsByPlayer: Readonly<Record<Player, readonly Declaration[]>>;
+  readonly declarationComparisonResult: DeclarationComparisonResult | null;
   readonly roundScore: RoundScoreBreakdown | null;
   readonly matchScores: Readonly<Record<Player, number>>;
   readonly matchWinner: Player | null;

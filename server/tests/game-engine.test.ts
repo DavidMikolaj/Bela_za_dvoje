@@ -85,7 +85,12 @@ describe("deal and player visibility", () => {
     expect(afterSelection.hands.player2.cards).toHaveLength(10);
     expect(afterSelection.hands.player1.cards).toEqual([]);
     expect(afterSelection.hands.player1.cardCount).toBe(10);
-    expect(JSON.stringify(afterSelection)).not.toContain(state.players.player1.initialCards[0]!.id);
+    expect(afterSelection.declarationsByPlayer).toEqual(selected.declarationsByPlayer);
+    const publicDeclarationIds = Object.values(afterSelection.declarationsByPlayer)
+      .flatMap((declarations) => declarations.flatMap((declaration) => declaration.cards.map(({ id }) => id)));
+    const privateOpponentCard = [...selected.players.player1.initialCards, ...selected.players.player1.additionalCards]
+      .find(({ id }) => !publicDeclarationIds.includes(id));
+    if (privateOpponentCard) expect(JSON.stringify(afterSelection)).not.toContain(privateOpponentCard.id);
 
     const player1AfterSelection = getPlayerView(selected, "player1");
     expect(player1AfterSelection.hands.player1.cards).toHaveLength(10);
@@ -164,7 +169,7 @@ describe("alternating dealer and round transitions", () => {
       const turn4 = submitBid(turn3, state.nonDealer, null);
 
       expect(turn4.currentBidder).toBe(state.dealer);
-      expect(() => submitBid(turn4, state.dealer, null)).toThrow("Passing is not allowed");
+      expect(() => submitBid(turn4, state.dealer, null)).toThrow(/nije moguće proći/i);
       expect(() => submitBid(turn4, state.dealer, state.faceUpCard.suit)).toThrow(GameRuleError);
     }
   });
@@ -252,7 +257,7 @@ describe("adut bidding", () => {
       "player2",
       null,
     );
-    expect(() => submitBid(turn4, "player1", null)).toThrow("Passing is not allowed");
+    expect(() => submitBid(turn4, "player1", null)).toThrow(/nije moguće proći/i);
   });
 
   it("accepts any non-upcard suit on turns three and four", () => {

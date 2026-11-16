@@ -10,7 +10,7 @@ export interface Card {
   readonly rank: "7" | "8" | "9" | "10" | "J" | "Q" | "K" | "A";
 }
 
-export interface Zvanje {
+export interface Declaration {
   readonly kind: "sequence" | "four-of-kind";
   readonly points: number;
   readonly cards: readonly Card[];
@@ -23,7 +23,7 @@ export interface RoundScoreBreakdown {
   readonly caller: Player;
   readonly contractSucceeded: boolean;
   readonly trickPoints: Readonly<Record<Player, number>>;
-  readonly ordinaryZvanjaPoints: Readonly<Record<Player, number>>;
+  readonly declarationPoints: Readonly<Record<Player, number>>;
   readonly belaPoints: Readonly<Record<Player, number>>;
   readonly lastTrickBonus: Readonly<Record<Player, number>>;
   readonly stigljaBonus: Readonly<Record<Player, number>>;
@@ -31,10 +31,10 @@ export interface RoundScoreBreakdown {
   readonly matchPointsAwarded: Readonly<Record<Player, number>>;
 }
 
-export interface OrdinaryZvanjaResult {
+export interface DeclarationComparisonResult {
   readonly winner: Player | null;
   readonly pointsAwarded: Readonly<Record<Player, number>>;
-  readonly scoredByPlayer: Readonly<Record<Player, readonly Zvanje[]>>;
+  readonly scoredByPlayer: Readonly<Record<Player, readonly Declaration[]>>;
 }
 
 export interface PlayerGameView {
@@ -71,8 +71,8 @@ export interface PlayerGameView {
   readonly collectedCardCounts: Readonly<Record<Player, number>>;
   readonly trickPoints: Readonly<Record<Player, number>>;
   readonly belaPoints: Readonly<Record<Player, number>>;
-  readonly ordinaryZvanjaByPlayer: Readonly<Record<Player, readonly Zvanje[]>>;
-  readonly ordinaryZvanjaResult: OrdinaryZvanjaResult | null;
+  readonly declarationsByPlayer: Readonly<Record<Player, readonly Declaration[]>>;
+  readonly declarationComparisonResult: DeclarationComparisonResult | null;
   readonly roundScore: RoundScoreBreakdown | null;
   readonly matchScores: Readonly<Record<Player, number>>;
   readonly matchWinner: Player | null;
@@ -97,12 +97,17 @@ async function request<T>(path: string, method = "GET", body?: unknown): Promise
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
-    throw new Error("Could not reach the game server. Check that the backend is running, then retry.");
+    throw new Error("Nije moguće povezati se s poslužiteljem igre. Provjerite radi li poslužitelj pa pokušajte ponovno.");
   }
 
-  const payload = await response.json() as { error?: string } & T;
+  let payload: { error?: string } & T;
+  try {
+    payload = await response.json() as { error?: string } & T;
+  } catch {
+    throw new Error("Poslužitelj je vratio neispravan odgovor.");
+  }
   if (!response.ok) {
-    throw new Error(payload.error ?? `Game server returned ${response.status}.`);
+    throw new Error(payload.error ?? `Poslužitelj igre vratio je pogrešku ${response.status}.`);
   }
   return payload;
 }

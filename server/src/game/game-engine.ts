@@ -15,7 +15,7 @@ import type {
   TrickState,
 } from "./types.js";
 import { SUITS } from "./types.js";
-import { compareOrdinaryZvanja, detectOrdinaryZvanja, getCardPointValue, getMatchWinner, settleRoundScore, updateBela } from "./scoring.js";
+import { compareDeclarations, detectDeclarations, getCardPointValue, getMatchWinner, settleRoundScore, updateBela } from "./scoring.js";
 
 export class GameRuleError extends Error {
   constructor(message: string) {
@@ -32,7 +32,7 @@ export function getNextDealer(currentDealer: Player): Player {
 
 export function getDealerForRound(roundNumber: number): Player {
   if (!Number.isInteger(roundNumber) || roundNumber < 1) {
-    throw new GameRuleError("Round number must be a positive integer.");
+    throw new GameRuleError("Broj runde mora biti pozitivan cijeli broj.");
   }
   return roundNumber % 2 === 1 ? FIRST_DEALER : getNextDealer(FIRST_DEALER);
 }
@@ -57,7 +57,7 @@ export function dealGame(
       return !canonicalCard || card.suit !== canonicalCard.suit || card.rank !== canonicalCard.rank;
     })
   ) {
-    throw new GameRuleError("A game requires a complete deck of 32 unique cards.");
+    throw new GameRuleError("Za igru je potreban potpun špil od 32 različite karte.");
   }
 
   const cards = [...deck];
@@ -112,8 +112,8 @@ export function dealGame(
       player2: { kingPlayed: false, queenPlayed: false, awarded: false },
     },
     belaPoints: { player1: 0, player2: 0 },
-    ordinaryZvanjaByPlayer: { player1: [], player2: [] },
-    ordinaryZvanjaResult: null,
+    declarationsByPlayer: { player1: [], player2: [] },
+    declarationComparisonResult: null,
     roundScore: null,
     matchScores: { ...matchScores },
     matchWinner,
@@ -124,7 +124,7 @@ export function dealGame(
 /** Development-only transition that ends a test without implying card play or scoring. */
 export function endTestRound(state: GameState): GameState {
   if (state.phase !== "bidding" && state.phase !== "playing") {
-    throw new GameRuleError("A test round can only be ended during bidding or card play.");
+    throw new GameRuleError("Probnu rundu možete završiti samo tijekom odabira aduta ili igranja karata.");
   }
   return {
     ...state,
@@ -144,12 +144,12 @@ export function startNextRound(
     (state.phase !== "round-complete" && state.phase !== "test-round-ended") ||
     state.awaitingTrickAcknowledgement
   ) {
-    throw new GameRuleError("The current round must be complete or explicitly ended before starting the next round.");
+    throw new GameRuleError("Prije početka nove runde završite ili izričito prekinite trenutačnu rundu.");
   }
-  if (state.matchWinner) throw new GameRuleError("The match is complete.");
+  if (state.matchWinner) throw new GameRuleError("Partija je završena.");
   const completedRounds = [...state.completedRounds];
   if (state.phase === "round-complete") {
-    if (!state.bidding.selectedSuit) throw new GameRuleError("Completed round is missing its adut suit.");
+    if (!state.bidding.selectedSuit) throw new GameRuleError("Završena runda nema odabran adut.");
     completedRounds.push({
       roundNumber: state.roundNumber,
       dealer: state.dealer,
@@ -159,11 +159,11 @@ export function startNextRound(
         player1: [...state.collectedCards.player1],
         player2: [...state.collectedCards.player2],
       },
-      ordinaryZvanjaByPlayer: {
-        player1: [...state.ordinaryZvanjaByPlayer.player1],
-        player2: [...state.ordinaryZvanjaByPlayer.player2],
+      declarationsByPlayer: {
+        player1: [...state.declarationsByPlayer.player1],
+        player2: [...state.declarationsByPlayer.player2],
       },
-      ordinaryZvanjaResult: state.ordinaryZvanjaResult!,
+      declarationComparisonResult: state.declarationComparisonResult!,
       score: state.roundScore!,
     });
   }
@@ -173,21 +173,21 @@ export function startNextRound(
 /** Apply a suit selection or pass. Pass is represented by null. */
 export function submitBid(state: GameState, player: Player, suit: Suit | null): GameState {
   if (state.phase !== "bidding") {
-    throw new GameRuleError("Bidding has already ended.");
+    throw new GameRuleError("Odabir aduta je već završen.");
   }
 
   const expectedPlayer = playerForTurn(state, state.bidding.turn);
   if (player !== expectedPlayer) {
-    throw new GameRuleError(`It is ${expectedPlayer}'s bidding turn.`);
+    throw new GameRuleError(`Sada je red na igrača ${expectedPlayer === "player1" ? "1" : "2"} da odabere adut.`);
   }
 
   validateSuitForTurn(state.bidding.turn, state.faceUpCard.suit, suit);
 
   if (suit !== null) {
     const exchangedState = exchangeFaceUpSeven(state);
-    const ordinaryZvanjaByPlayer = {
-      player1: detectOrdinaryZvanja([...exchangedState.players.player1.initialCards, ...exchangedState.players.player1.additionalCards]),
-      player2: detectOrdinaryZvanja([...exchangedState.players.player2.initialCards, ...exchangedState.players.player2.additionalCards]),
+    const declarationsByPlayer = {
+      player1: detectDeclarations([...exchangedState.players.player1.initialCards, ...exchangedState.players.player1.additionalCards]),
+      player2: detectDeclarations([...exchangedState.players.player2.initialCards, ...exchangedState.players.player2.additionalCards]),
     };
     return {
       ...exchangedState,
@@ -195,13 +195,13 @@ export function submitBid(state: GameState, player: Player, suit: Suit | null): 
       currentBidder: null,
       currentPlayer: state.nonDealer,
       bidding: { ...state.bidding, selectedSuit: suit, selectedBy: player },
-      ordinaryZvanjaByPlayer,
-      ordinaryZvanjaResult: compareOrdinaryZvanja(ordinaryZvanjaByPlayer, state.dealer, state.nonDealer),
+      declarationsByPlayer,
+      declarationComparisonResult: compareDeclarations(declarationsByPlayer, state.dealer, state.nonDealer),
     };
   }
 
   if (state.bidding.turn === 4) {
-    throw new GameRuleError("Passing is not allowed on bidding turn 4.");
+    throw new GameRuleError("U četvrtom potezu odabir aduta je obavezan; nije moguće proći.");
   }
 
   return {
@@ -214,7 +214,7 @@ export function submitBid(state: GameState, player: Player, suit: Suit | null): 
 /** Exchange the original upcard for its matching Seven once, before the first trick. */
 function exchangeFaceUpSeven(state: GameState): GameState {
   if (state.faceUpExchangeChecked) {
-    throw new GameRuleError("The face-up Seven exchange was already checked this round.");
+    throw new GameRuleError("Zamjena otvorene sedmice već je provjerena u ovoj rundi.");
   }
 
   const originalFaceUpCard = state.originalFaceUpCard;
@@ -297,7 +297,7 @@ export function getLegalCards(
 /** Compare the two cards of a completed trick and return its winner. */
 export function determineTrickWinner(playedCards: readonly PlayedCard[], adut: Suit): Player {
   if (playedCards.length !== 2) {
-    throw new GameRuleError("A trick winner can only be determined after two cards are played.");
+    throw new GameRuleError("Pobjednik štiha može se odrediti tek nakon što su odigrane obje karte.");
   }
   const first = playedCards[0]!;
   const second = playedCards[1]!;
@@ -307,20 +307,20 @@ export function determineTrickWinner(playedCards: readonly PlayedCard[], adut: S
 /** Server-authoritative card play. Invalid cards and out-of-turn requests are rejected. */
 export function playCard(state: GameState, player: Player, cardId: string): GameState {
   if (state.phase !== "playing" || !state.bidding.selectedSuit) {
-    throw new GameRuleError("Cards can only be played after adut has been selected.");
+    throw new GameRuleError("Karte se mogu igrati tek nakon odabira aduta.");
   }
   if (state.currentPlayer !== player) {
-    throw new GameRuleError(`It is ${state.currentPlayer ?? "no player's"} turn to play.`);
+    throw new GameRuleError(`Sada je red na igrača ${state.currentPlayer === "player1" ? "1" : "2"} da odigra kartu.`);
   }
 
   const hand = state.players[player];
   const fullHand = [...hand.initialCards, ...hand.additionalCards];
   const card = fullHand.find((candidate) => candidate.id === cardId);
-  if (!card) throw new GameRuleError("That card is not in this player's hand.");
+  if (!card) throw new GameRuleError("Ta karta nije u vašoj ruci.");
 
   const legalCards = getLegalCards(fullHand, state.currentTrick.cards, state.bidding.selectedSuit);
   if (!legalCards.some((legalCard) => legalCard.id === cardId)) {
-    throw new GameRuleError("That card is not a legal play for this trick.");
+    throw new GameRuleError("Ta karta nije dopušten potez u ovom štihu.");
   }
 
   const updatedHand: PlayerHand = {
@@ -361,7 +361,7 @@ export function playCard(state: GameState, player: Player, cardId: string): Game
     ? settleRoundScore({
         caller: state.bidding.selectedBy!,
         trickPoints,
-        ordinaryZvanjaPoints: state.ordinaryZvanjaResult?.pointsAwarded ?? { player1: 0, player2: 0 },
+        declarationPoints: state.declarationComparisonResult?.pointsAwarded ?? { player1: 0, player2: 0 },
         belaPoints,
         tricksWon,
         lastTrickWinner: winner,
@@ -397,7 +397,7 @@ export function acknowledgeTrick(state: GameState): GameState {
     (state.phase !== "trick-complete" && state.phase !== "round-complete") ||
     !state.currentTrick.winner
   ) {
-    throw new GameRuleError("There is no completed trick awaiting acknowledgement.");
+    throw new GameRuleError("Nema završenog štiha koji čeka potvrdu.");
   }
 
   if (state.tricksPlayed === 10) {
@@ -474,12 +474,8 @@ export function getPlayerView(state: GameState, viewer: Player): PlayerGameView 
       player2: state.collectedCards.player2.length,
     },
     belaPoints: state.belaPoints,
-    ordinaryZvanjaByPlayer: state.phase === "round-complete"
-      ? state.ordinaryZvanjaByPlayer
-      : viewer === "player1"
-        ? { player1: state.ordinaryZvanjaByPlayer.player1, player2: [] }
-        : { player1: [], player2: state.ordinaryZvanjaByPlayer.player2 },
-    ordinaryZvanjaResult: state.phase === "round-complete" ? state.ordinaryZvanjaResult : null,
+    declarationsByPlayer: state.declarationsByPlayer,
+    declarationComparisonResult: state.phase === "round-complete" ? state.declarationComparisonResult : null,
     roundScore: state.phase === "round-complete" ? state.roundScore : null,
     matchScores: state.matchScores,
     matchWinner: state.matchWinner,
@@ -517,13 +513,13 @@ function validateSuitForTurn(turn: BiddingTurn, faceUpSuit: Suit, suit: Suit | n
   if (suit === null) return;
 
   if (!(SUITS as readonly string[]).includes(suit)) {
-    throw new GameRuleError("The selected adut suit is invalid.");
+    throw new GameRuleError("Odabrana boja aduta nije valjana.");
   }
 
   if ((turn === 1 || turn === 2) && suit !== faceUpSuit) {
-    throw new GameRuleError("On bidding turns 1 and 2, only the face-up suit can be selected.");
+    throw new GameRuleError("U prvom i drugom potezu možete odabrati samo boju otvorene karte.");
   }
   if ((turn === 3 || turn === 4) && suit === faceUpSuit) {
-    throw new GameRuleError("On bidding turns 3 and 4, select a suit other than the face-up suit.");
+    throw new GameRuleError("U trećem i četvrtom potezu odaberite boju različitu od boje otvorene karte.");
   }
 }
