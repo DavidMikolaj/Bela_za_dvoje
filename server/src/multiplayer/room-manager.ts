@@ -44,7 +44,8 @@ export type RoomErrorCode =
   | "NOT_CREATOR"
   | "SECOND_PLAYER_NOT_CONNECTED"
   | "ROOM_CODE_GENERATION_FAILED"
-  | "SESSION_GENERATION_FAILED";
+  | "SESSION_GENERATION_FAILED"
+  | "GAME_START_FAILED";
 
 export interface RoomError {
   readonly code: RoomErrorCode;
@@ -83,6 +84,7 @@ interface RoomManagerOptions {
 
 export interface RoomLeaveResult {
   readonly roomCode: string;
+  readonly player: RoomPlayer;
   readonly closed: boolean;
   readonly disconnectedSocketIds: readonly string[];
   readonly room: PublicRoomState | null;
@@ -237,13 +239,13 @@ export class RoomManager {
     if (!binding) return failure("NOT_IN_ROOM", "Trenutačno niste u sobi.");
     const room = this.rooms.get(binding.roomCode);
     this.socketBindings.delete(socketId);
-    if (!room) return { ok: true, data: { roomCode: binding.roomCode, closed: true, disconnectedSocketIds: [], room: null } };
+    if (!room) return { ok: true, data: { roomCode: binding.roomCode, player: binding.player, closed: true, disconnectedSocketIds: [], room: null } };
 
     if (binding.player === room.creator) {
       const disconnectedSocketIds = [room.players.player1.socketId, room.players.player2?.socketId]
         .filter((value): value is string => Boolean(value));
       this.removeRoom(room);
-      return { ok: true, data: { roomCode: room.code, closed: true, disconnectedSocketIds, room: null } };
+      return { ok: true, data: { roomCode: room.code, player: binding.player, closed: true, disconnectedSocketIds, room: null } };
     }
 
     const seat = room.players.player2;
@@ -253,7 +255,7 @@ export class RoomManager {
       room.players.player2 = null;
     }
     this.refreshStatus(room);
-    return { ok: true, data: { roomCode: room.code, closed: false, disconnectedSocketIds: [], room: this.publicRoom(room) } };
+    return { ok: true, data: { roomCode: room.code, player: binding.player, closed: false, disconnectedSocketIds: [], room: this.publicRoom(room) } };
   }
 
   disconnect(socketId: string): RoomDisconnectResult | null {
@@ -273,6 +275,22 @@ export class RoomManager {
     const normalized = normalizeRoomCode(code);
     const room = normalized ? this.rooms.get(normalized) : undefined;
     return room ? this.publicRoom(room) : null;
+  }
+
+  /** Server-only identity derived from the currently controlling socket, never client input. */
+  getSocketIdentity(socketId: string): { readonly roomCode: string; readonly player: RoomPlayer } | null {
+    const binding = this.socketBindings.get(socketId);
+    if (!binding) return null;
+    const room = this.rooms.get(binding.roomCode);
+    const seat = room?.players[binding.player];
+    if (!room || !seat || seat.socketId !== socketId || seat.sessionHash !== binding.sessionHash) return null;
+    return { roomCode: binding.roomCode, player: binding.player };
+  }
+
+  /** Current socket for a seat; a resumed session replaces the previous socket. */
+  getPlayerSocketId(roomCode: string, player: RoomPlayer): string | null {
+    const room = this.rooms.get(roomCode);
+    return room?.players[player]?.socketId ?? null;
   }
 
   private createSession(): { readonly token: string; readonly hash: string } | null {

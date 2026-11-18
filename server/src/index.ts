@@ -1,27 +1,15 @@
-﻿import express from "express";
-import { createServer } from "node:http";
-import { Server } from "socket.io";
-import { createLocalGameRouter } from "./dev/local-game-api.js";
-import { attachMultiplayerHandlers, type ClientToServerEvents, type InterServerEvents, type ServerToClientEvents, type SocketData } from "./multiplayer/socket-events.js";
+import { createApplication } from "./app.js";
 
-const app = express();
-const httpServer = createServer(app);
-const io = new Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>(httpServer, {
-  cors: { origin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173" },
-});
+const { httpServer } = createApplication();
+const port = Number(process.env.PORT ?? 3000);
+const host = process.env.HOST ?? "127.0.0.1";
 
-app.get("/health", (_request, response) => {
-  response.json({ status: "ok" });
-});
-
-if (process.env.NODE_ENV !== "production") {
-  app.use("/api/dev", createLocalGameRouter());
+if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  throw new Error("PORT must be an integer between 1 and 65535.");
 }
 
-attachMultiplayerHandlers(io);
-
-const port = Number(process.env.PORT ?? 3000);
-httpServer.listen(port, () => {
-  console.info(`Backend API listening on http://localhost:${port}`);
-  console.info("Open the frontend at http://localhost:5173/");
+httpServer.listen(port, host, () => {
+  const browserHost = host === "0.0.0.0" || host === "::" ? "localhost" : host;
+  console.info(`Bela za dvoje is running at http://${browserHost}:${port}/`);
+  if (process.env.NODE_ENV !== "production") console.info("Development frontend: http://localhost:5173/");
 });

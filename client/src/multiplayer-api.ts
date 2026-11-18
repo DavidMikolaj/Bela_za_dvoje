@@ -1,4 +1,5 @@
 import { io, type Socket } from "socket.io-client";
+import type { PlayerGameView, Suit } from "./game-api";
 
 export type RoomPlayer = "player1" | "player2";
 export type RoomStatus = "waiting" | "ready" | "started";
@@ -33,6 +34,14 @@ export interface RoomError {
   readonly message: string;
 }
 
+export interface MultiplayerGameState {
+  readonly matchId: string;
+  readonly view: PlayerGameView;
+  readonly room: PublicRoomState;
+  readonly nextRoundReady: Readonly<Record<RoomPlayer, boolean>>;
+  readonly newMatchReady: Readonly<Record<RoomPlayer, boolean>>;
+}
+
 export type RoomAck<T> = { readonly ok: true; readonly data: T } | { readonly ok: false; readonly error: RoomError };
 
 export interface ClientToServerEvents {
@@ -41,11 +50,17 @@ export interface ClientToServerEvents {
   "room:resume": (payload: { readonly sessionToken: string }, ack: (response: RoomAck<RoomCredential>) => void) => void;
   "room:leave": (ack: (response: RoomAck<{ readonly left: true }>) => void) => void;
   "room:start": (ack: (response: RoomAck<RoomStartNotice & { readonly room: PublicRoomState }>) => void) => void;
+  "game:get-state": (ack: (response: RoomAck<MultiplayerGameState>) => void) => void;
+  "game:bid": (payload: { readonly matchId: string; readonly suit: Suit | null }, ack: (response: RoomAck<{ readonly accepted: true }>) => void) => void;
+  "game:play-card": (payload: { readonly matchId: string; readonly cardId: string; readonly callBela: boolean }, ack: (response: RoomAck<{ readonly accepted: true }>) => void) => void;
+  "game:next-round": (payload: { readonly matchId: string; readonly roundNumber: number }, ack: (response: RoomAck<{ readonly accepted: true; readonly waitingForOpponent: boolean }>) => void) => void;
+  "game:new-match": (payload: { readonly matchId: string }, ack: (response: RoomAck<{ readonly accepted: true; readonly waitingForOpponent: boolean }>) => void) => void;
 }
 
 export interface ServerToClientEvents {
   "room:state": (state: PublicRoomState | RoomClosedNotice) => void;
   "room:started": (notice: RoomStartNotice) => void;
+  "game:state": (state: MultiplayerGameState) => void;
 }
 
 export type MultiplayerSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -53,8 +68,8 @@ export type MultiplayerSocket = Socket<ServerToClientEvents, ClientToServerEvent
 export const ROOM_SESSION_STORAGE_KEY = "bela.multiplayer.session.v1";
 
 export function createMultiplayerSocket(): MultiplayerSocket {
-  const endpoint = import.meta.env.VITE_SOCKET_URL;
-  return io(endpoint || undefined, { autoConnect: true, reconnection: true });
+  // Resolve against the current page origin so Vite's proxy, reverse proxies, and HTTPS tunnels work alike.
+  return io({ autoConnect: true, reconnection: true });
 }
 
 export function requestRoom<T>(send: (ack: (response: RoomAck<T>) => void) => void): Promise<RoomAck<T>> {

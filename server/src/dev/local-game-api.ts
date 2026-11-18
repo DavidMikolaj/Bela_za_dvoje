@@ -1,4 +1,5 @@
 import express, { Router, type Response } from "express";
+import { randomUUID } from "node:crypto";
 import {
   dealGame,
   endTestRound,
@@ -15,10 +16,12 @@ import { SUITS, type GameState, type Player, type PlayerGameView, type Suit } fr
 interface LocalMatch {
   state: GameState;
   activePlayer: Player;
+  matchId: string;
 }
 
 export interface LocalMatchResponse {
   readonly matchExists: true;
+  readonly matchId: string;
   readonly activePlayer: Player;
   readonly scores: Readonly<Record<Player, number>>;
   readonly trickTransitionAt: number | null;
@@ -34,6 +37,7 @@ export interface LocalGameRouterOptions {
 function toResponse(match: LocalMatch, trickTransitionAt: number | null): LocalMatchResponse {
   return {
     matchExists: true,
+    matchId: match.matchId,
     activePlayer: match.activePlayer,
     scores: { ...match.state.matchScores },
     trickTransitionAt,
@@ -110,6 +114,7 @@ export function createLocalGameRouter(options: LocalGameRouterOptions = {}): Rou
     match = {
       state,
       activePlayer: state.nonDealer,
+      matchId: randomUUID(),
     };
     response.status(201).json(toResponse(match, trickTransitionAt));
   });

@@ -1034,10 +1034,17 @@ body,
 .round-result { margin: 12px 0; padding: 14px 16px; }
 .round-result small { display: block; margin-top: 6px; color: #c4d2c8; }
 .match-winner { color: #f3df9c; }
+.round-result .round-winner { margin: 0; color: #f3df9c; font-family: "Playfair Display", Georgia, serif; font-size: clamp(18px, 2vw, 24px); }
+.round-result .contract-result { margin-top: 4px; color: #c7d7ef; font-weight: 600; }
+.round-player-points { margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.round-player-points article { min-width: 0; padding: 10px 12px; display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; border: 1px solid rgba(185, 209, 240, .14); border-radius: 10px; background: rgba(5, 17, 34, .3); color: #b8cbe5; font-size: 10px; }
+.round-player-points article > strong { grid-column: 1 / -1; color: #f0d98e; font-family: "DM Mono", monospace; font-size: 12px; }
+.round-player-points b { color: #edf4ff; font-family: "DM Mono", monospace; }
 
 @media (max-width: 620px) {
   .declarations-panel { grid-template-columns: 1fr; padding: 14px; }
   .declarations-player { grid-template-columns: 1fr; }
+  .round-player-points { grid-template-columns: 1fr; }
 }
 
 .error-banner {
@@ -1769,9 +1776,14 @@ body,
 .room-lobby-actions .button { min-width: min(190px, 100%); }
 .multiplayer-placeholder { margin-top: 19px; padding: 18px; border: 1px dashed rgba(175, 202, 239, .24); border-radius: 12px; color: #e8f0fd; background: rgba(5, 17, 34, .35); }
 .multiplayer-placeholder p { margin: 7px 0 0; color: #9db2cf; font-size: 11px; }
+.online-match-actions { display: flex; align-items: center; gap: 10px; }
+.online-alerts { max-width: min(34vw, 390px); display: grid; gap: 3px; color: #ffd8a1; font-size: 10px; text-align: right; }
+.online-alerts p { margin: 0; }
 
 @media (max-width: 640px) {
   .multiplayer-shell .topbar { height: 60px; padding: 0 13px; }
+  .online-match-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .online-alerts { max-width: min(52vw, 240px); font-size: 9px; }
   .multiplayer-content { width: calc(100% - 26px); min-height: calc(100dvh - 60px); padding: 24px 0; }
   .multiplayer-options { grid-template-columns: 1fr; gap: 11px; }
   .multiplayer-option { padding: 18px; }
@@ -1785,4 +1797,62 @@ body,
   .room-player-slot { padding: 10px; gap: 8px; }
   .room-player-slot > div strong { font-size: 11px; }
   .room-player-status { font-size: 9px; }
+}
+
+/* Settled round results replace the center play surface and can grow naturally on every viewport. */
+.round-complete-table {
+  height: auto !important;
+  min-height: 520px;
+  grid-template-rows: auto auto auto !important;
+  overflow: visible !important;
+}
+.round-complete-table .round-summary-center {
+  height: auto;
+  min-height: 0;
+  grid-template-rows: auto;
+  grid-template-areas: "bidding";
+  align-content: start;
+}
+.round-complete-table .round-summary-center .bidding-panel {
+  width: min(850px, 100%);
+  justify-self: center;
+  align-self: start;
+}
+.round-complete-table .round-result { max-height: none; overflow: visible; }
+
+.game-screen .playing-center {
+  grid-template-columns: clamp(58px, 7vw, 92px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: "pile trick" "bidding bidding";
+  align-items: stretch;
+}
+.game-screen .playing-center .table-pile { grid-area: pile; min-width: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; }
+.table-pile-deck,
+.table-pile-upcard { position: relative; display: flex; align-items: center; flex-direction: column; gap: 3px; }
+.table-pile-deck .playing-card,
+.table-pile-upcard .playing-card { width: clamp(38px, 4vw, 58px); height: auto; aspect-ratio: .695; }
+.table-pile-deck > span { position: absolute; right: -8px; bottom: -4px; min-width: 17px; height: 17px; display: grid; place-items: center; border-radius: 50%; color: #10213d; background: #c5dcf6; font: 700 8px "DM Mono", monospace; }
+.table-pile-upcard > span { color: #9db2cf; font: 6px "DM Mono", monospace; letter-spacing: .5px; }
+.award-notice { position: fixed; top: clamp(72px, 9vh, 105px); right: clamp(12px, 3vw, 44px); z-index: 15; width: min(440px, calc(100vw - 24px)); max-height: min(54dvh, 460px); overflow: auto; padding: 17px 18px; border: 1px solid rgba(175, 202, 239, .3); border-radius: 15px; color: #edf4ff; background: linear-gradient(145deg, rgba(23, 44, 75, .98), rgba(11, 25, 46, .98)); box-shadow: 0 18px 55px rgba(0, 0, 0, .44); }
+.award-notice > .eyebrow { margin-bottom: 5px; font-size: 8px; }
+.award-notice h2 { margin: 0 28px 12px 0; color: #f3df9c; font: 500 19px "Playfair Display", Georgia, serif; }
+.award-notice-close { position: absolute; top: 9px; right: 10px; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 50%; color: #d9e6f8; background: rgba(255,255,255,.04); cursor: pointer; font-size: 19px; }
+.award-notice-items { display: grid; gap: 10px; }
+.award-notice-items article { padding: 9px; border: 1px solid rgba(185, 209, 240, .13); border-radius: 10px; background: rgba(5, 17, 34, .3); }
+.award-notice-items article > div:first-child { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 7px; color: #f0d98e; font-size: 11px; }
+.award-notice-items article > div:first-child span { font-family: "DM Mono", monospace; white-space: nowrap; }
+.award-notice-cards { display: flex; flex-wrap: wrap; gap: 5px; }
+.award-notice-cards .playing-card { width: 42px; height: auto; aspect-ratio: .695; }
+.round-result { overflow-wrap: anywhere; }
+.match-final-score { margin: 8px 0 0; color: #f1d990; font: 700 12px "DM Mono", monospace; }
+
+@media (max-width: 700px) {
+  .round-complete-table { min-height: 415px; }
+  .game-screen .playing-center { grid-template-columns: 46px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; gap: 6px; }
+  .game-screen .playing-center .table-pile { gap: 5px; }
+  .table-pile-deck .playing-card,
+  .table-pile-upcard .playing-card { width: 39px; }
+  .award-notice { top: 68px; right: 8px; max-height: 45dvh; padding: 13px; }
+  .award-notice h2 { font-size: 16px; }
+  .award-notice-cards .playing-card { width: 36px; }
 }

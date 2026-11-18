@@ -93,6 +93,7 @@ export type LocalMatchSnapshot =
   | { readonly matchExists: false }
   | {
       readonly matchExists: true;
+      readonly matchId: string;
       readonly activePlayer: Player;
       readonly scores: Readonly<Record<Player, number>>;
       readonly trickTransitionAt: number | null;

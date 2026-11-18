@@ -47,6 +47,7 @@ describe("face-up Seven exchange", () => {
     expect(handCards(state, dealt.dealer)).toHaveLength(10);
 
     const recipientView = getPlayerView(state, dealt.nonDealer);
+    expect(recipientView.faceUpCard).toEqual(seven);
     expect(recipientView.hands[dealt.nonDealer].cards).toContainEqual(originalUpcard);
     expect(recipientView.legalCardIds).toContain(originalUpcard.id);
     const played = playCard(state, dealt.nonDealer, originalUpcard.id);
@@ -59,6 +60,7 @@ describe("face-up Seven exchange", () => {
       const selected = selectAdut(dealt, adut);
       expect(selected.bidding.selectedSuit).toBe(adut);
       expect(selected.faceUpCard.id).toBe(`${dealt.originalFaceUpCard.suit}-7`);
+      expect(getPlayerView(selected, dealt.nonDealer).faceUpCard).toEqual(selected.faceUpCard);
       expect(handCards(selected, dealt.nonDealer)).toContainEqual(dealt.originalFaceUpCard);
       expect(selected.faceUpExchangeChecked).toBe(true);
     }
