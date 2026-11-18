@@ -127,14 +127,18 @@ export function updateBela(
   playerPoints: number,
   card: Card,
   adut: Suit,
+  callBela = false,
 ): { readonly progress: BelaProgress; readonly points: number } {
   if (card.suit !== adut || progress.awarded || (card.rank !== "K" && card.rank !== "Q")) {
     return { progress, points: playerPoints };
   }
   const next: BelaProgress = {
+    called: progress.called || callBela,
     kingPlayed: progress.kingPlayed || card.rank === "K",
     queenPlayed: progress.queenPlayed || card.rank === "Q",
-    awarded: progress.awarded || ((progress.kingPlayed || card.rank === "K") && (progress.queenPlayed || card.rank === "Q")),
+    awarded: progress.awarded || ((progress.kingPlayed || card.rank === "K") && (progress.queenPlayed || card.rank === "Q") && (progress.called || callBela)),
+    kingCard: card.rank === "K" ? card : progress.kingCard,
+    queenCard: card.rank === "Q" ? card : progress.queenCard,
   };
   return { progress: next, points: playerPoints + (next.awarded && !progress.awarded ? 20 : 0) };
 }

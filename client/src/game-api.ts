@@ -19,6 +19,15 @@ export interface Declaration {
   readonly rank: Card["rank"] | null;
 }
 
+export interface AwardedZvanja {
+  readonly id: string;
+  readonly player: Player;
+  readonly name: string;
+  readonly points: number;
+  readonly cards: readonly Card[];
+  readonly kind: "ordinary" | "bela";
+}
+
 export interface RoundScoreBreakdown {
   readonly caller: Player;
   readonly contractSucceeded: boolean;
@@ -59,6 +68,7 @@ export interface PlayerGameView {
   };
   readonly allowedBids: readonly (Suit | null)[];
   readonly legalCardIds: readonly string[];
+  readonly belaAnnouncementCardIds: readonly string[];
   readonly tricksPlayed: number;
   readonly currentTrick: {
     readonly number: number;
@@ -70,8 +80,9 @@ export interface PlayerGameView {
   readonly tricksWon: Readonly<Record<Player, number>>;
   readonly collectedCardCounts: Readonly<Record<Player, number>>;
   readonly trickPoints: Readonly<Record<Player, number>>;
+  readonly zvanjaPointsAwarded: Readonly<Record<Player, number>>;
+  readonly awardedZvanja: Readonly<Record<Player, readonly AwardedZvanja[]>>;
   readonly belaPoints: Readonly<Record<Player, number>>;
-  readonly declarationsByPlayer: Readonly<Record<Player, readonly Declaration[]>>;
   readonly declarationComparisonResult: DeclarationComparisonResult | null;
   readonly roundScore: RoundScoreBreakdown | null;
   readonly matchScores: Readonly<Record<Player, number>>;
@@ -84,6 +95,7 @@ export type LocalMatchSnapshot =
       readonly matchExists: true;
       readonly activePlayer: Player;
       readonly scores: Readonly<Record<Player, number>>;
+      readonly trickTransitionAt: number | null;
       /** Contains only activePlayer's hand cards; opponent cards are omitted server-side. */
       readonly view: PlayerGameView;
     };
@@ -118,7 +130,6 @@ export const localGameApi = {
   startNextRound: () => request<LocalMatchSnapshot>("/match/round", "POST"),
   switchPlayer: () => request<LocalMatchSnapshot>("/match/switch-player", "POST"),
   submitBid: (suit: Suit | null) => request<LocalMatchSnapshot>("/match/bid", "POST", { suit }),
-  playCard: (cardId: string) => request<LocalMatchSnapshot>("/match/play", "POST", { cardId }),
-  acknowledgeTrick: () => request<LocalMatchSnapshot>("/match/acknowledge-trick", "POST"),
+  playCard: (cardId: string, callBela: boolean) => request<LocalMatchSnapshot>("/match/play", "POST", { cardId, callBela }),
   endTestRound: () => request<LocalMatchSnapshot>("/match/end-test-round", "POST"),
 };

@@ -2,7 +2,7 @@
 
 A two-player Croatian Bela application with a React + TypeScript + Vite client and a Node.js + Express + TypeScript backend. The backend contains the Mađarice deck, shuffle, deal, adut bidding, dealer rotation, legal card play and trick-taking engine. SQLite configuration will be added later.
 
-The browser table supports a local hot-seat match with private player views, adut selection, card play, trick results, collected-card retention, automatic declaration detection, Bela tracking, round scoring, contract settlement, and match totals to 1001. Declaration announcements and online multiplayer are not implemented.
+The browser table supports a local hot-seat match with private player views, adut selection, card play, trick results, collected-card retention, automatic declaration detection, optional Bela announcements, round scoring, contract settlement, and match totals to 1001. Online multiplayer is not implemented.
 
 The provided Mađarice artwork is served from `client/public/cards`; suit icons are in `client/public/cards/suits`. Source suits map heart/bell/acorn/leaf to srce/tikva/žir/zelje. Source Unter maps to J and Ober maps to Q. The selected adut and its suit icon remain visible for the round.
 

@@ -4,6 +4,7 @@ import {
   endTestRound,
   GameRuleError,
   getPlayerView,
+  getBelaAnnouncementCardIds,
   acknowledgeTrick,
   playCard,
   startNextRound,
@@ -20,15 +21,22 @@ export interface LocalMatchResponse {
   readonly matchExists: true;
   readonly activePlayer: Player;
   readonly scores: Readonly<Record<Player, number>>;
+  readonly trickTransitionAt: number | null;
   /** Only the active local player's filtered view is returned. */
   readonly view: PlayerGameView;
 }
 
-function toResponse(match: LocalMatch): LocalMatchResponse {
+export interface LocalGameRouterOptions {
+  readonly trickDisplayMs?: number;
+  readonly createGameState?: () => GameState;
+}
+
+function toResponse(match: LocalMatch, trickTransitionAt: number | null): LocalMatchResponse {
   return {
     matchExists: true,
     activePlayer: match.activePlayer,
     scores: { ...match.state.matchScores },
+    trickTransitionAt,
     view: getPlayerView(match.state, match.activePlayer),
   };
 }
@@ -47,34 +55,73 @@ function otherPlayer(player: Player): Player {
 }
 
 /** In-memory local-only routes. Mount only outside production. */
-export function createLocalGameRouter(): Router {
+export function createLocalGameRouter(options: LocalGameRouterOptions = {}): Router {
   const router = Router();
   let match: LocalMatch | null = null;
+  let trickTransitionTimer: ReturnType<typeof setTimeout> | null = null;
+  let trickTransitionAt: number | null = null;
+  let scheduledTrickKey: string | null = null;
+  const trickDisplayMs = options.trickDisplayMs ?? 1500;
   router.use(express.json());
+
+  const cancelTrickTransition = () => {
+    if (trickTransitionTimer) clearTimeout(trickTransitionTimer);
+    trickTransitionTimer = null;
+    trickTransitionAt = null;
+    scheduledTrickKey = null;
+  };
+
+  const scheduleTrickTransition = (scheduledMatch: LocalMatch) => {
+    const state = scheduledMatch.state;
+    if (!state.awaitingTrickAcknowledgement || !state.currentTrick.winner) return;
+    const key = `${state.roundNumber}:${state.tricksPlayed}:${state.currentTrick.winner}`;
+    if (scheduledTrickKey === key) return;
+    cancelTrickTransition();
+    scheduledTrickKey = key;
+    trickTransitionAt = Date.now() + trickDisplayMs;
+    trickTransitionTimer = setTimeout(() => {
+      if (match !== scheduledMatch || scheduledTrickKey !== key) return;
+      const latest = scheduledMatch.state;
+      if (!latest.awaitingTrickAcknowledgement || latest.currentTrick.winner !== state.currentTrick.winner || latest.tricksPlayed !== state.tricksPlayed) return;
+      try {
+        scheduledMatch.state = acknowledgeTrick(latest);
+        if (scheduledMatch.state.currentPlayer) scheduledMatch.activePlayer = scheduledMatch.state.currentPlayer;
+      } catch (error) {
+        console.error("Automatic trick transition failed:", error);
+      } finally {
+        trickTransitionTimer = null;
+        trickTransitionAt = null;
+        scheduledTrickKey = null;
+      }
+    }, trickDisplayMs);
+  };
 
   router.get("/match", (_request, response) => {
     if (!match) {
       response.json({ matchExists: false });
       return;
     }
-    response.json(toResponse(match));
+    response.json(toResponse(match, trickTransitionAt));
   });
 
   router.post("/match", (_request, response) => {
-    const state = dealGame();
+    cancelTrickTransition();
+    const state = options.createGameState?.() ?? dealGame();
     match = {
       state,
       activePlayer: state.nonDealer,
     };
-    response.status(201).json(toResponse(match));
+    response.status(201).json(toResponse(match, trickTransitionAt));
   });
 
   router.post("/match/round", (_request, response) => {
     if (!match) return response.status(404).json({ error: "Lokalna partija ne postoji." });
     try {
-      match.state = startNextRound(match.state);
+      const nextState = startNextRound(match.state);
+      cancelTrickTransition();
+      match.state = nextState;
       match.activePlayer = match.state.nonDealer;
-      response.json(toResponse(match));
+      response.json(toResponse(match, trickTransitionAt));
     } catch (error) {
       sendError(response, error);
     }
@@ -92,7 +139,7 @@ export function createLocalGameRouter(): Router {
       match.state = submitBid(match.state, match.activePlayer, submittedSuit as Suit | null);
       if (match.state.currentBidder) match.activePlayer = match.state.currentBidder;
       else if (match.state.currentPlayer) match.activePlayer = match.state.currentPlayer;
-      response.json(toResponse(match));
+      response.json(toResponse(match, trickTransitionAt));
     } catch (error) {
       sendError(response, error);
     }
@@ -101,7 +148,7 @@ export function createLocalGameRouter(): Router {
   router.post("/match/switch-player", (_request, response) => {
     if (!match) return response.status(404).json({ error: "Lokalna partija ne postoji." });
     match.activePlayer = otherPlayer(match.activePlayer);
-    response.json(toResponse(match));
+    response.json(toResponse(match, trickTransitionAt));
   });
 
   router.post("/match/play", (request, response) => {
@@ -111,21 +158,24 @@ export function createLocalGameRouter(): Router {
       response.status(400).json({ error: "Odaberite kartu iz svoje vidljive ruke." });
       return;
     }
+    const callBela: unknown = request.body?.callBela;
     try {
-      match.state = playCard(match.state, match.activePlayer, cardId);
+      const canCallBela = getBelaAnnouncementCardIds(match.state, match.activePlayer).includes(cardId);
+      if (canCallBela && typeof callBela !== "boolean") {
+        response.status(400).json({ error: "Odaberite želite li zvati Belu prije odigravanja kralja ili dame aduta." });
+        return;
+      }
+      if (callBela !== undefined && typeof callBela !== "boolean") {
+        response.status(400).json({ error: "Odluka o zvanju Bele nije valjana." });
+        return;
+      }
+      const previousTricksPlayed = match.state.tricksPlayed;
+      match.state = playCard(match.state, match.activePlayer, cardId, callBela === true);
       if (match.state.currentPlayer) match.activePlayer = match.state.currentPlayer;
-      response.json(toResponse(match));
-    } catch (error) {
-      sendError(response, error);
-    }
-  });
-
-  router.post("/match/acknowledge-trick", (_request, response) => {
-    if (!match) return response.status(404).json({ error: "Lokalna partija ne postoji." });
-    try {
-      match.state = acknowledgeTrick(match.state);
-      if (match.state.currentPlayer) match.activePlayer = match.state.currentPlayer;
-      response.json(toResponse(match));
+      if (match.state.tricksPlayed > previousTricksPlayed && match.state.awaitingTrickAcknowledgement) {
+        scheduleTrickTransition(match);
+      }
+      response.json(toResponse(match, trickTransitionAt));
     } catch (error) {
       sendError(response, error);
     }
@@ -135,7 +185,8 @@ export function createLocalGameRouter(): Router {
     if (!match) return response.status(404).json({ error: "Lokalna partija ne postoji." });
     try {
       match.state = endTestRound(match.state);
-      response.json(toResponse(match));
+      cancelTrickTransition();
+      response.json(toResponse(match, trickTransitionAt));
     } catch (error) {
       sendError(response, error);
     }

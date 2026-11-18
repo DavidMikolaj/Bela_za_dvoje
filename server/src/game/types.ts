@@ -43,9 +43,21 @@ export interface DeclarationComparisonResult {
 }
 
 export interface BelaProgress {
+  readonly called: boolean;
   readonly kingPlayed: boolean;
   readonly queenPlayed: boolean;
   readonly awarded: boolean;
+  readonly kingCard: Card | null;
+  readonly queenCard: Card | null;
+}
+
+export interface AwardedZvanja {
+  readonly id: string;
+  readonly player: Player;
+  readonly name: string;
+  readonly points: number;
+  readonly cards: readonly Card[];
+  readonly kind: "ordinary" | "bela";
 }
 
 export interface RoundScoreBreakdown {
@@ -143,15 +155,19 @@ export interface PlayerGameView {
   /** Legal choices for this viewer only; empty when it is not their turn. */
   readonly allowedBids: readonly (Suit | null)[];
   readonly legalCardIds: readonly string[];
+  /** Legal cards for which this player can choose to announce Bela with the play. */
+  readonly belaAnnouncementCardIds: readonly string[];
   readonly tricksPlayed: number;
   readonly currentTrick: TrickState;
   readonly awaitingTrickAcknowledgement: boolean;
   readonly tricksWon: Readonly<Record<Player, number>>;
   readonly trickPoints: Readonly<Record<Player, number>>;
+  /** Server-calculated ordinary zvanja plus Bela points already awarded this round. */
+  readonly zvanjaPointsAwarded: Readonly<Record<Player, number>>;
+  /** Contains only ordinary declarations and Bela that have actually earned points. */
+  readonly awardedZvanja: Readonly<Record<Player, readonly AwardedZvanja[]>>;
   readonly collectedCardCounts: Readonly<Record<Player, number>>;
   readonly belaPoints: Readonly<Record<Player, number>>;
-  /** Both players' publicly declared declarations are visible; comparison stays private until round end. */
-  readonly declarationsByPlayer: Readonly<Record<Player, readonly Declaration[]>>;
   readonly declarationComparisonResult: DeclarationComparisonResult | null;
   readonly roundScore: RoundScoreBreakdown | null;
   readonly matchScores: Readonly<Record<Player, number>>;

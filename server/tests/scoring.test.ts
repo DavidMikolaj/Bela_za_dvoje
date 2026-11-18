@@ -3,7 +3,7 @@ import { compareDeclarations, detectDeclarations, getCardPointValue, getMatchWin
 import type { BelaProgress, Card, Player, Suit, Declaration } from "../src/game/types.js";
 
 const card = (suit: Suit, rank: Card["rank"]): Card => ({ id: `${suit}-${rank}`, suit, rank });
-const emptyProgress: BelaProgress = { kingPlayed: false, queenPlayed: false, awarded: false };
+const emptyProgress: BelaProgress = { called: false, kingPlayed: false, queenPlayed: false, awarded: false, kingCard: null, queenCard: null };
 
 describe("declarations detection and comparison", () => {
   it("detects runs, quads, and never counts shorter sequences inside a longer run", () => {
@@ -33,13 +33,19 @@ describe("declarations detection and comparison", () => {
 });
 
 describe("Bela and round/match settlement", () => {
-  it("awards Bela only after both adut King and Queen are played, once", () => {
+  it("awards Bela once only after it is called and both adut King and Queen are played", () => {
     const king = updateBela(emptyProgress, 0, card("srce", "K"), "srce");
     expect(king.points).toBe(0);
-    const queen = updateBela(king.progress, king.points, card("srce", "Q"), "srce");
+    expect(king.progress.kingCard).toEqual(card("srce", "K"));
+    const queen = updateBela(king.progress, king.points, card("srce", "Q"), "srce", true);
     expect(queen.points).toBe(20);
-    expect(updateBela(queen.progress, queen.points, card("srce", "K"), "srce").points).toBe(20);
+    expect(queen.progress.queenCard).toEqual(card("srce", "Q"));
+    expect(queen.progress.awarded).toBe(true);
+    expect(updateBela(queen.progress, queen.points, card("srce", "K"), "srce", true).points).toBe(20);
     expect(updateBela(emptyProgress, 0, card("srce", "K"), "tikva").points).toBe(0);
+    const declinedKing = updateBela(emptyProgress, 0, card("srce", "K"), "srce");
+    const declinedQueen = updateBela(declinedKing.progress, declinedKing.points, card("srce", "Q"), "srce");
+    expect(declinedQueen.points).toBe(0);
   });
 
   it("uses distinct trump and non-trump point values", () => {
@@ -57,6 +63,31 @@ describe("Bela and round/match settlement", () => {
     const tie = settleRoundScore({ ...common, caller: "player1", tricksWon: { player1: 5, player2: 5 }, lastTrickWinner: "player2", trickPoints: { player1: 81, player2: 71 } });
     expect(tie.contractSucceeded).toBe(false);
     expect(tie.matchPointsAwarded).toEqual({ player1: 0, player2: 162 });
+  });
+
+  it("transfers every round point, including the failed caller's zvanja and Bela, to the opponent", () => {
+    const player2CalledAndFailed = settleRoundScore({
+      caller: "player2",
+      trickPoints: { player1: 162, player2: 0 },
+      declarationPoints: { player1: 0, player2: 20 },
+      belaPoints: { player1: 0, player2: 20 },
+      tricksWon: { player1: 10, player2: 0 },
+      lastTrickWinner: "player1",
+    });
+    expect(player2CalledAndFailed.contractSucceeded).toBe(false);
+    expect(player2CalledAndFailed.roundTotals).toEqual({ player1: 262, player2: 40 });
+    expect(player2CalledAndFailed.matchPointsAwarded).toEqual({ player1: 302, player2: 0 });
+
+    const player1CalledAndFailed = settleRoundScore({
+      caller: "player1",
+      trickPoints: { player1: 50, player2: 100 },
+      declarationPoints: { player1: 20, player2: 0 },
+      belaPoints: { player1: 0, player2: 0 },
+      tricksWon: { player1: 6, player2: 4 },
+      lastTrickWinner: "player2",
+    });
+    expect(player1CalledAndFailed.contractSucceeded).toBe(false);
+    expect(player1CalledAndFailed.matchPointsAwarded).toEqual({ player1: 0, player2: 180 });
   });
 
   it("resolves 1001 threshold after same-round totals", () => {

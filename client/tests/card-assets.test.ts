@@ -21,6 +21,13 @@ describe("Mađarice card asset mapping", () => {
     expect(getPlayingCardAssetPath(deck.find(({ suit, rank }) => suit === "srce" && rank === "Q")!)).toBe("/cards/heart-ober.png");
   });
 
+  it("maps the two Bela cards to their Mađarice face images", () => {
+    const king = deck.find(({ suit, rank }) => suit === "srce" && rank === "K")!;
+    const queen = deck.find(({ suit, rank }) => suit === "srce" && rank === "Q")!;
+    expect(getPlayingCardAssetPath(king)).toBe("/cards/heart-king.png");
+    expect(getPlayingCardAssetPath(queen)).toBe("/cards/heart-ober.png");
+  });
+
   it("maps all suit icons and the card back to existing images", () => {
     for (const suit of SUITS) expect(existsSync(resolve(process.cwd(), "client/public", getSuitIconAssetPath(suit).slice(1)))).toBe(true);
     expect(existsSync(resolve(process.cwd(), "client/public", CARD_BACK_ASSET_PATH.slice(1)))).toBe(true);

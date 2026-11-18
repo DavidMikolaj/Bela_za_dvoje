@@ -2,8 +2,10 @@ import { createDeck } from "./cards.js";
 import { shuffleDeck } from "./shuffle.js";
 import type {
   BiddingTurn,
+  AwardedZvanja,
   Card,
   CompletedRoundCards,
+  Declaration,
   GameState,
   Player,
   PlayerGameView,
@@ -108,8 +110,8 @@ export function dealGame(
     trickPoints: { player1: 0, player2: 0 },
     collectedCards: { player1: [], player2: [] },
     belaProgress: {
-      player1: { kingPlayed: false, queenPlayed: false, awarded: false },
-      player2: { kingPlayed: false, queenPlayed: false, awarded: false },
+      player1: { called: false, kingPlayed: false, queenPlayed: false, awarded: false, kingCard: null, queenCard: null },
+      player2: { called: false, kingPlayed: false, queenPlayed: false, awarded: false, kingCard: null, queenCard: null },
     },
     belaPoints: { player1: 0, player2: 0 },
     declarationsByPlayer: { player1: [], player2: [] },
@@ -304,8 +306,25 @@ export function determineTrickWinner(playedCards: readonly PlayedCard[], adut: S
   return beatsCard(second.card, first.card, adut) ? second.player : first.player;
 }
 
+/** Legal cards on which this player can still announce their adut King/Queen pair. */
+export function getBelaAnnouncementCardIds(state: GameState, player: Player): readonly string[] {
+  const adut = state.bidding.selectedSuit;
+  if (state.phase !== "playing" || !adut || state.currentPlayer !== player || state.belaProgress[player].called || state.belaProgress[player].awarded) return [];
+  const hand = state.players[player];
+  const fullHand = [...hand.initialCards, ...hand.additionalCards];
+  const legalIds = new Set(getLegalCards(fullHand, state.currentTrick.cards, adut).map(({ id }) => id));
+  return fullHand.filter((card) => {
+    if (!legalIds.has(card.id) || card.suit !== adut || (card.rank !== "K" && card.rank !== "Q")) return false;
+    const partnerRank = card.rank === "K" ? "Q" : "K";
+    const partnerAlreadyPlayed = card.rank === "K"
+      ? state.belaProgress[player].queenCard !== null
+      : state.belaProgress[player].kingCard !== null;
+    return partnerAlreadyPlayed || fullHand.some((candidate) => candidate.id !== card.id && candidate.suit === adut && candidate.rank === partnerRank);
+  }).map(({ id }) => id);
+}
+
 /** Server-authoritative card play. Invalid cards and out-of-turn requests are rejected. */
-export function playCard(state: GameState, player: Player, cardId: string): GameState {
+export function playCard(state: GameState, player: Player, cardId: string, callBela = false): GameState {
   if (state.phase !== "playing" || !state.bidding.selectedSuit) {
     throw new GameRuleError("Karte se mogu igrati tek nakon odabira aduta.");
   }
@@ -318,6 +337,9 @@ export function playCard(state: GameState, player: Player, cardId: string): Game
   const card = fullHand.find((candidate) => candidate.id === cardId);
   if (!card) throw new GameRuleError("Ta karta nije u vašoj ruci.");
 
+  const canCallBela = getBelaAnnouncementCardIds(state, player).includes(cardId);
+  if (callBela && !canCallBela) throw new GameRuleError("Belu možete zvati samo uz adut kralja ili damu dok imate njihov par.");
+
   const legalCards = getLegalCards(fullHand, state.currentTrick.cards, state.bidding.selectedSuit);
   if (!legalCards.some((legalCard) => legalCard.id === cardId)) {
     throw new GameRuleError("Ta karta nije dopušten potez u ovom štihu.");
@@ -329,7 +351,7 @@ export function playCard(state: GameState, player: Player, cardId: string): Game
   };
   const players = { ...state.players, [player]: updatedHand };
   const playedCards: PlayedCard[] = [...state.currentTrick.cards, { player, card }];
-  const belaResult = updateBela(state.belaProgress[player], state.belaPoints[player], card, state.bidding.selectedSuit);
+  const belaResult = updateBela(state.belaProgress[player], state.belaPoints[player], card, state.bidding.selectedSuit, callBela);
   const belaProgress = { ...state.belaProgress, [player]: belaResult.progress };
   const belaPoints = { ...state.belaPoints, [player]: belaResult.points };
 
@@ -419,6 +441,57 @@ export function acknowledgeTrick(state: GameState): GameState {
   };
 }
 
+function ordinaryDeclarationName(declaration: Declaration): string {
+  if (declaration.kind === "sequence") {
+    const sequenceNames: Readonly<Record<number, string>> = {
+      3: "Terca",
+      4: "Kvarta",
+      5: "Kvinta",
+      6: "Seksta",
+      7: "Septima",
+      8: "Oktava",
+    };
+    return sequenceNames[declaration.sequenceLength ?? 0] ?? "Niz";
+  }
+
+  const rankName: Readonly<Record<Rank, string>> = {
+    "7": "sedmice", "8": "osmice", "9": "devetke", "10": "desetke",
+    J: "dečke", Q: "dame", K: "kraljeve", A: "aseve",
+  };
+  return `Četiri ${rankName[declaration.rank ?? "7"]}`;
+}
+
+function getAwardedZvanja(state: GameState): Readonly<Record<Player, readonly AwardedZvanja[]>> {
+  const result: Record<Player, AwardedZvanja[]> = { player1: [], player2: [] };
+  for (const player of ["player1", "player2"] as const) {
+    const ordinary = state.declarationComparisonResult?.scoredByPlayer[player] ?? [];
+    for (const declaration of ordinary) {
+      if (declaration.points <= 0) continue;
+      result[player].push({
+        id: `ordinary:${declaration.cards.map(({ id }) => id).sort().join(":")}`,
+        player,
+        name: ordinaryDeclarationName(declaration),
+        points: declaration.points,
+        cards: declaration.cards,
+        kind: "ordinary",
+      });
+    }
+
+    const bela = state.belaProgress[player];
+    if (bela.awarded && state.belaPoints[player] > 0 && bela.kingCard && bela.queenCard) {
+      result[player].push({
+        id: `bela:${bela.kingCard.id}:${bela.queenCard.id}`,
+        player,
+        name: "Bela",
+        points: state.belaPoints[player],
+        cards: [bela.kingCard, bela.queenCard],
+        kind: "bela",
+      });
+    }
+  }
+  return result;
+}
+
 /** Returns only information that the requested player is allowed to see. */
 export function getPlayerView(state: GameState, viewer: Player): PlayerGameView {
   const ownHand = state.players[viewer];
@@ -464,17 +537,22 @@ export function getPlayerView(state: GameState, viewer: Player): PlayerGameView 
           state.bidding.selectedSuit,
         ).map(({ id }) => id)
       : [],
+    belaAnnouncementCardIds: getBelaAnnouncementCardIds(state, viewer),
     tricksPlayed: state.tricksPlayed,
     currentTrick: state.currentTrick,
     awaitingTrickAcknowledgement: state.awaitingTrickAcknowledgement,
     tricksWon: state.tricksWon,
     trickPoints: state.trickPoints,
+    zvanjaPointsAwarded: {
+      player1: (state.declarationComparisonResult?.pointsAwarded.player1 ?? 0) + state.belaPoints.player1,
+      player2: (state.declarationComparisonResult?.pointsAwarded.player2 ?? 0) + state.belaPoints.player2,
+    },
+    awardedZvanja: getAwardedZvanja(state),
     collectedCardCounts: {
       player1: state.collectedCards.player1.length,
       player2: state.collectedCards.player2.length,
     },
     belaPoints: state.belaPoints,
-    declarationsByPlayer: state.declarationsByPlayer,
     declarationComparisonResult: state.phase === "round-complete" ? state.declarationComparisonResult : null,
     roundScore: state.phase === "round-complete" ? state.roundScore : null,
     matchScores: state.matchScores,

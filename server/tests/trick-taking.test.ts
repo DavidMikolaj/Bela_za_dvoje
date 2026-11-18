@@ -147,10 +147,10 @@ describe("server-authoritative trick flow", () => {
     expect(view.hands[responsePlayer].cards).toHaveLength(10);
     expect(view.currentTrick.cards[0]!.card).toEqual(played);
     expect(view.legalCardIds.length).toBeGreaterThan(0);
-    expect(view.declarationsByPlayer).toEqual(state.declarationsByPlayer);
+    expect(view).not.toHaveProperty("declarationsByPlayer");
     expect(view.declarationComparisonResult).toBeNull();
-    const visibleDeclarationIds = Object.values(view.declarationsByPlayer).flatMap((declarations) => declarations.flatMap((declaration) => declaration.cards.map(({ id }) => id)));
-    const hiddenUndeclaredCard = hand(state, opponent).find(({ id }) => !visibleDeclarationIds.includes(id));
+    const visibleAwardedIds = Object.values(view.awardedZvanja).flatMap((items) => items.flatMap((item) => item.cards.map(({ id }) => id)));
+    const hiddenUndeclaredCard = hand(state, opponent).find(({ id }) => !visibleAwardedIds.includes(id));
     if (hiddenUndeclaredCard) expect(JSON.stringify(view)).not.toContain(hiddenUndeclaredCard.id);
   });
 
@@ -205,8 +205,8 @@ describe("server-authoritative trick flow", () => {
     expect(state.currentTrick.cards).toHaveLength(2);
     const completedView = getPlayerView(state, state.nonDealer);
     expect(completedView.declarationComparisonResult).not.toBeNull();
-    expect(completedView.declarationsByPlayer.player1.length + completedView.declarationsByPlayer.player2.length)
-      .toBe(state.declarationsByPlayer.player1.length + state.declarationsByPlayer.player2.length);
+    expect(completedView.awardedZvanja.player1.every((item) => item.points > 0)).toBe(true);
+    expect(completedView.awardedZvanja.player2.every((item) => item.points > 0)).toBe(true);
     const nextRound = startNextRound(state, createDeck());
     expect(nextRound.completedRounds).toHaveLength(1);
     expect(nextRound.completedRounds[0]!.collectedCards.player1.length +

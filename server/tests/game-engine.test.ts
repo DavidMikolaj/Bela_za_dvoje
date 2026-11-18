@@ -85,12 +85,12 @@ describe("deal and player visibility", () => {
     expect(afterSelection.hands.player2.cards).toHaveLength(10);
     expect(afterSelection.hands.player1.cards).toEqual([]);
     expect(afterSelection.hands.player1.cardCount).toBe(10);
-    expect(afterSelection.declarationsByPlayer).toEqual(selected.declarationsByPlayer);
-    const publicDeclarationIds = Object.values(afterSelection.declarationsByPlayer)
-      .flatMap((declarations) => declarations.flatMap((declaration) => declaration.cards.map(({ id }) => id)));
-    const privateOpponentCard = [...selected.players.player1.initialCards, ...selected.players.player1.additionalCards]
-      .find(({ id }) => !publicDeclarationIds.includes(id));
-    if (privateOpponentCard) expect(JSON.stringify(afterSelection)).not.toContain(privateOpponentCard.id);
+    expect(afterSelection).not.toHaveProperty("declarationsByPlayer");
+    expect([...afterSelection.awardedZvanja.player1, ...afterSelection.awardedZvanja.player2]
+      .every((declaration) => declaration.points > 0)).toBe(true);
+    const privateOpponentCards = [...selected.players.player1.initialCards, ...selected.players.player1.additionalCards]
+      .filter((card) => !afterSelection.awardedZvanja.player1.some((item) => item.cards.some(({ id }) => id === card.id)));
+    for (const card of privateOpponentCards) expect(JSON.stringify(afterSelection)).not.toContain(card.id);
 
     const player1AfterSelection = getPlayerView(selected, "player1");
     expect(player1AfterSelection.hands.player1.cards).toHaveLength(10);

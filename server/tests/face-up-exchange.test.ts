@@ -126,7 +126,7 @@ describe("face-up Seven exchange", () => {
     const opponentView = getPlayerView(selected, opponent);
 
     expect(opponentView.hands[recipient].cards).toEqual([]);
-    expect(opponentView.declarationsByPlayer).toEqual(selected.declarationsByPlayer);
+    expect(opponentView).not.toHaveProperty("declarationsByPlayer");
     expect(opponentView).not.toHaveProperty("exchangePlayer");
   });
 });

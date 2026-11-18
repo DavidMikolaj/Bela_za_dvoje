@@ -3,13 +3,15 @@ import type { AddressInfo } from "node:net";
 import express from "express";
 import { afterEach, describe, expect, it } from "vitest";
 import { createLocalGameRouter } from "../src/dev/local-game-api.js";
-import { SUITS } from "../src/game/types.js";
+import { createDeck } from "../src/game/cards.js";
+import { dealGame } from "../src/game/game-engine.js";
+import { SUITS, type GameState } from "../src/game/types.js";
 
 const servers: ReturnType<typeof createServer>[] = [];
 
-async function startApi() {
+async function startApi(trickDisplayMs = 1500, createGameState?: () => GameState) {
   const app = express();
-  app.use("/api/dev", createLocalGameRouter());
+  app.use("/api/dev", createLocalGameRouter({ trickDisplayMs, createGameState }));
   const server = createServer(app);
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -25,7 +27,7 @@ async function startApi() {
     return { response, payload: await response.json() as Record<string, any> };
   }
 
-  return { json };
+  return { json, baseUrl };
 }
 
 afterEach(async () => {
@@ -44,15 +46,73 @@ describe("local hot-seat game API", () => {
     expect(payload.view.dealer).toBe("player1");
     expect(payload.view.nonDealer).toBe("player2");
     expect(payload.activePlayer).toBe("player2");
+    expect(payload.view.viewer).toBe("player2");
     expect(payload.view.currentBidder).toBe("player2");
     expect(payload.view.hands.player2.cards).toHaveLength(6);
     expect(payload.view.hands.player2.hiddenCardCount).toBe(4);
     expect(payload.view.hands.player1.cards).toEqual([]);
     expect(payload.view.allowedBids).toEqual([payload.view.faceUpCard.suit, null]);
     expect(payload.scores).toEqual({ player1: 0, player2: 0 });
+    expect(payload.view.trickPoints).toEqual({ player1: 0, player2: 0 });
+    expect(payload.view.zvanjaPointsAwarded).toEqual({ player1: 0, player2: 0 });
     expect(JSON.stringify(payload)).not.toContain("additionalCards");
     expect(payload.view).not.toHaveProperty("faceDownStack");
     expect(payload.view.faceDownStackCount).toBe(11);
+  });
+
+  it("requires an explicit Bela decision for an eligible King or Queen play", async () => {
+    const createGameState = (): GameState => {
+      const dealt = dealGame(createDeck());
+      const progress = { called: false, kingPlayed: false, queenPlayed: false, awarded: false, kingCard: null, queenCard: null };
+      return {
+        ...dealt,
+        phase: "playing",
+        currentBidder: null,
+        currentPlayer: dealt.nonDealer,
+        players: {
+          player1: { initialCards: [{ id: "api-response", suit: "srce", rank: "7" }], additionalCards: [] },
+          player2: {
+            initialCards: [
+              { id: "api-king", suit: "srce", rank: "K" },
+              { id: "api-queen", suit: "srce", rank: "Q" },
+            ],
+            additionalCards: [],
+          },
+        },
+        bidding: { turn: 1, selectedSuit: "srce", selectedBy: dealt.nonDealer },
+        belaProgress: { player1: progress, player2: progress },
+        belaPoints: { player1: 0, player2: 0 },
+      };
+    };
+    const { json } = await startApi(25, createGameState);
+    const created = (await json("/match", "POST")).payload;
+    expect(created.view.belaAnnouncementCardIds).toEqual(["api-king", "api-queen"]);
+
+    const missingChoice = await json("/match/play", "POST", { cardId: "api-king" });
+    expect(missingChoice.response.status).toBe(400);
+    expect(missingChoice.payload.error).toMatch(/zvati Belu/i);
+
+    const declined = (await json("/match/play", "POST", { cardId: "api-king", callBela: false })).payload;
+    expect(declined.view.currentTrick.cards[0].card.id).toBe("api-king");
+    expect(declined.view.zvanjaPointsAwarded.player2).toBe(0);
+
+    const completedTrick = (await json("/match/play", "POST", { cardId: "api-response", callBela: false })).payload;
+    expect(completedTrick.view.phase).toBe("trick-complete");
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    const refreshed = (await json("/match")).payload;
+    expect(refreshed.view.currentPlayer).toBe("player2");
+    expect(refreshed.view.belaAnnouncementCardIds).toEqual(["api-queen"]);
+
+    const missingSecondChoice = await json("/match/play", "POST", { cardId: "api-queen" });
+    expect(missingSecondChoice.response.status).toBe(400);
+    const completedBela = (await json("/match/play", "POST", { cardId: "api-queen", callBela: true })).payload;
+    expect(completedBela.view.zvanjaPointsAwarded.player2).toBe(20);
+    expect(completedBela.view.awardedZvanja.player2).toMatchObject([
+      { name: "Bela", points: 20, cards: [
+        { id: "api-king", rank: "K", suit: "srce" },
+        { id: "api-queen", rank: "Q", suit: "srce" },
+      ] },
+    ]);
   });
 
   it("persists the active local player across refresh and clears the old hand on switch", async () => {
@@ -64,6 +124,7 @@ describe("local hot-seat game API", () => {
     const switched = (await json("/match/switch-player", "POST")).payload;
     expect(switched.activePlayer).toBe("player1");
     expect(switched.view.viewer).toBe("player1");
+    expect(switched.view.dealer).toBe("player1");
     expect(switched.view.hands.player1.cards).toHaveLength(6);
     expect(switched.view.hands.player2.cards).toEqual([]);
     expect(JSON.stringify(switched)).not.toContain(created.view.hands.player2.cards[0].id);
@@ -127,8 +188,8 @@ describe("local hot-seat game API", () => {
     expect(otherPlayerView.view.hands.player2.cards).toEqual([]);
   });
 
-  it("accepts legal plays, rejects hidden opponent cards, and holds trick cards for acknowledgement", async () => {
-    const { json } = await startApi();
+  it("automatically advances one completed trick after its server-owned display delay", async () => {
+    const { json, baseUrl } = await startApi(35);
     const created = (await json("/match", "POST")).payload;
     const called = (await json("/match/bid", "POST", { suit: created.view.faceUpCard.suit })).payload;
     const leadCard = called.view.hands.player2.cards[0];
@@ -139,9 +200,10 @@ describe("local hot-seat game API", () => {
     expect(responseView.view.currentPlayer).toBe("player1");
     expect(responseView.view.currentTrick.cards).toHaveLength(1);
     expect(responseView.view.hands.player2.cards).toEqual([]);
-    expect(JSON.stringify(responseView)).not.toContain(
-      called.view.hands.player2.cards.find((card: { id: string }) => card.id !== leadCard.id).id,
-    );
+    const publiclyAwardedCardIds = Object.values(responseView.view.awardedZvanja)
+      .flatMap((items: any) => items.flatMap((item: any) => item.cards.map((card: { id: string }) => card.id)));
+    const privateOpponentCard = called.view.hands.player2.cards.find((card: { id: string }) => card.id !== leadCard.id && !publiclyAwardedCardIds.includes(card.id));
+    if (privateOpponentCard) expect(JSON.stringify(responseView)).not.toContain(privateOpponentCard.id);
 
     const opponentCard = called.view.hands.player2.cards.find((card: { id: string }) => card.id !== leadCard.id);
     const rejected = await json("/match/play", "POST", { cardId: opponentCard.id });
@@ -153,12 +215,27 @@ describe("local hot-seat game API", () => {
     expect(result.view.currentTrick.cards).toHaveLength(2);
     expect(result.view.currentTrick.winner).toMatch(/player[12]/);
     expect(result.view.awaitingTrickAcknowledgement).toBe(true);
+    expect(result.trickTransitionAt).toBeGreaterThan(Date.now());
+    expect((await json("/match")).payload.view.currentTrick).toEqual(result.view.currentTrick);
+    const blockedDuringDisplay = await json("/match/play", "POST", { cardId: legalId });
+    expect(blockedDuringDisplay.response.status).toBe(400);
+    expect((await json("/match/round", "POST")).response.status).toBe(400);
+    const removedManualConfirmation = await fetch(`${baseUrl}/match/acknowledge-trick`, { method: "POST" });
+    expect(removedManualConfirmation.status).toBe(404);
 
-    const nextTrick = (await json("/match/acknowledge-trick", "POST")).payload;
+    await new Promise((resolve) => setTimeout(resolve, 55));
+    const nextTrick = (await json("/match")).payload;
     expect(nextTrick.view.phase).toBe("playing");
     expect(nextTrick.view.currentPlayer).toBe(result.view.currentTrick.winner);
     expect(nextTrick.activePlayer).toBe(result.view.currentTrick.winner);
     expect(nextTrick.view.currentTrick.cards).toEqual([]);
+    expect(nextTrick.view.tricksPlayed).toBe(1);
+    expect(nextTrick.view.currentTrick.number).toBe(2);
+    expect(nextTrick.trickTransitionAt).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 45));
+    const stillNextTrick = (await json("/match")).payload;
+    expect(stillNextTrick.view.currentTrick.number).toBe(2);
+    expect(stillNextTrick.view.tricksPlayed).toBe(1);
   });
 
   it("ends a development test without points and rotates the dealer once on the next round", async () => {
