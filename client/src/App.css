@@ -1717,3 +1717,72 @@ body,
   .round-finished .game-screen { min-height: calc(100dvh - 46px); }
   .round-finished .table { min-height: 460px; }
 }
+
+/* Stage 1 private multiplayer landing screen and lobby. */
+.multiplayer-shell { min-height: 100dvh; }
+.multiplayer-shell .topbar { border-color: rgba(197, 216, 244, .12); }
+.connection-status { display: inline-flex; align-items: center; gap: 8px; color: #9db2cf; font-size: 11px; }
+.connection-status .online-dot { width: 7px; height: 7px; border-radius: 50%; background: #b77a7a; }
+.connection-status.is-connected .online-dot { background: #92d1a5; box-shadow: 0 0 10px rgba(146, 209, 165, .55); }
+.multiplayer-content { width: min(960px, calc(100% - 36px)); min-height: calc(100dvh - 76px); margin: 0 auto; padding: 42px 0; display: grid; align-content: center; }
+.multiplayer-home { width: 100%; text-align: center; }
+.multiplayer-home > .welcome-icon { margin: 0 auto 18px; }
+.multiplayer-home > .eyebrow { margin-bottom: 9px; }
+.multiplayer-home h1,
+.room-lobby h1 { margin: 0; color: #f1f5fc; font-family: "Playfair Display", Georgia, serif; font-size: clamp(30px, 5vw, 48px); font-weight: 500; }
+.multiplayer-intro { max-width: 520px; margin: 12px auto 30px; color: #aabddd; font-size: 14px; line-height: 1.65; }
+.multiplayer-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; text-align: left; }
+.multiplayer-option { min-width: 0; padding: clamp(20px, 3vw, 30px); border: 1px solid rgba(175, 202, 239, .18); border-radius: 17px; background: linear-gradient(145deg, rgba(23, 44, 75, .9), rgba(11, 25, 46, .93)); box-shadow: 0 18px 48px rgba(0, 0, 0, .15); }
+.option-icon { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid rgba(191, 217, 245, .25); border-radius: 11px; color: #c5dcf6; background: rgba(191, 217, 245, .08); font-size: 21px; }
+.multiplayer-option h2 { margin: 17px 0 7px; color: #eef4ff; font-family: "Playfair Display", Georgia, serif; font-size: 22px; font-weight: 500; }
+.multiplayer-option > p { min-height: 38px; margin: 0 0 18px; color: #9db2cf; font-size: 12px; line-height: 1.6; }
+.multiplayer-option .button { width: 100%; }
+.join-room-form { display: grid; gap: 8px; }
+.join-room-form label { color: #b9cce7; font-size: 10px; letter-spacing: .5px; }
+.join-room-form input { width: 100%; min-height: 43px; padding: 0 12px; border: 1px solid rgba(175, 202, 239, .24); border-radius: 9px; outline: none; color: #f3f6fc; background: rgba(4, 15, 31, .56); font: 600 15px "DM Mono", monospace; letter-spacing: 2px; text-transform: uppercase; }
+.join-room-form input:focus-visible { border-color: #bfd9f5; box-shadow: 0 0 0 3px rgba(191, 217, 245, .12); }
+.join-room-form input::placeholder { color: #657c9c; font-size: 12px; letter-spacing: 1px; }
+.join-room-form .button { margin-top: 3px; }
+.multiplayer-footnote { margin: 19px 0 0; color: #7288a7; font-size: 10px; }
+.multiplayer-error,
+.multiplayer-notice { width: min(600px, 100%); margin: 16px auto 0; padding: 11px 14px; border: 1px solid rgba(229, 137, 137, .3); border-radius: 9px; color: #f2c5c5; background: rgba(104, 35, 43, .22); font-size: 12px; text-align: center; }
+.multiplayer-notice { border-color: rgba(157, 192, 231, .22); color: #c3d7f2; background: rgba(40, 68, 103, .24); }
+.room-lobby { width: min(640px, 100%); margin: 0 auto; padding: clamp(21px, 4vw, 36px); border: 1px solid rgba(175, 202, 239, .2); border-radius: 19px; background: linear-gradient(145deg, rgba(23, 44, 75, .94), rgba(11, 25, 46, .96)); box-shadow: 0 22px 70px rgba(0, 0, 0, .24); text-align: center; }
+.room-lobby > .eyebrow { margin: 0 0 8px; }
+.room-lobby h1 { font-size: clamp(28px, 4vw, 38px); }
+.room-code-card { width: min(340px, 100%); margin: 23px auto; padding: 15px; display: grid; justify-items: center; gap: 8px; border: 1px solid rgba(225, 194, 121, .3); border-radius: 13px; background: rgba(210, 172, 91, .07); }
+.room-code-card > span { color: #acbfdb; font: 9px "DM Mono", monospace; letter-spacing: 1.4px; }
+.room-code-card > strong { color: #f1d990; font: 700 clamp(27px, 6vw, 38px) "DM Mono", monospace; letter-spacing: 5px; }
+.room-code-card .button { min-height: 32px; padding: 0 12px; font-size: 10px; }
+.room-player-slots { display: grid; gap: 9px; margin-top: 19px; text-align: left; }
+.room-player-slot { min-width: 0; padding: 12px 14px; display: flex; align-items: center; gap: 11px; border: 1px solid rgba(175, 202, 239, .14); border-radius: 11px; background: rgba(7, 18, 35, .38); }
+.room-player-slot .player-avatar { width: 34px; height: 34px; flex: 0 0 auto; }
+.room-player-slot > div { min-width: 0; flex: 1; text-align: left; }
+.room-player-slot > div strong { color: #eaf2ff; font-size: 12px; }
+.room-player-slot > div p { margin: 3px 0 0; color: #8fa6c6; font-size: 10px; }
+.room-player-status { display: inline-flex; align-items: center; gap: 6px; color: #a7dbb5; font-size: 10px; white-space: nowrap; }
+.room-player-status i { width: 7px; height: 7px; border-radius: 50%; background: #8bc99b; }
+.room-player-status.is-offline { color: #98a8c0; }
+.room-player-status.is-offline i { background: #73839b; }
+.room-lobby-message { margin: 18px 0 0; color: #c3d5ed; font-size: 12px; line-height: 1.55; }
+.room-lobby-actions { margin-top: 20px; display: flex; flex-wrap: wrap; justify-content: center; gap: 9px; }
+.room-lobby-actions .button { min-width: min(190px, 100%); }
+.multiplayer-placeholder { margin-top: 19px; padding: 18px; border: 1px dashed rgba(175, 202, 239, .24); border-radius: 12px; color: #e8f0fd; background: rgba(5, 17, 34, .35); }
+.multiplayer-placeholder p { margin: 7px 0 0; color: #9db2cf; font-size: 11px; }
+
+@media (max-width: 640px) {
+  .multiplayer-shell .topbar { height: 60px; padding: 0 13px; }
+  .multiplayer-content { width: calc(100% - 26px); min-height: calc(100dvh - 60px); padding: 24px 0; }
+  .multiplayer-options { grid-template-columns: 1fr; gap: 11px; }
+  .multiplayer-option { padding: 18px; }
+  .multiplayer-option h2 { margin-top: 12px; font-size: 19px; }
+  .multiplayer-option > p { min-height: 0; margin-bottom: 12px; }
+  .join-room-form { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+  .join-room-form label { grid-column: 1 / -1; }
+  .join-room-form input { min-width: 0; }
+  .join-room-form .button { width: auto; min-height: 43px; margin: 0; padding: 0 12px; font-size: 10px; }
+  .room-lobby { padding: 20px 14px; }
+  .room-player-slot { padding: 10px; gap: 8px; }
+  .room-player-slot > div strong { font-size: 11px; }
+  .room-player-status { font-size: 9px; }
+}

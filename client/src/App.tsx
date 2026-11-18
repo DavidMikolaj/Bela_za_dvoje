@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { localGameApi, type LocalMatchSnapshot, type Player, type PlayerGameView } from "./game-api";
 import { sortCardsForDisplay } from "./card-sorting";
 import { PlayingCard } from "./components/PlayingCard";
 import { getSuitIconAssetPath } from "./components/card-assets";
+import { createMultiplayerSocket, requestRoom, ROOM_SESSION_STORAGE_KEY, type MultiplayerSocket, type PublicRoomState, type RoomAck, type RoomCredential, type RoomPlayer, type RoomStartNotice } from "./multiplayer-api";
 import "./App.css";
 
 function otherPlayer(player: Player): Player {
@@ -58,12 +59,228 @@ function PlayerArea({
 }
 
 function App() {
+  const developmentMode = new URLSearchParams(window.location.search).get("dev") === "1";
+  return developmentMode ? <LocalTestingApp /> : <MultiplayerApp />;
+}
+
+function MultiplayerApp() {
+  const [socket, setSocket] = useState<MultiplayerSocket | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [room, setRoom] = useState<PublicRoomState | null>(null);
+  const [player, setPlayer] = useState<RoomPlayer | null>(null);
+  const [roomCodeInput, setRoomCodeInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const client = createMultiplayerSocket();
+    let active = true;
+    setSocket(client);
+
+    const onConnect = () => {
+      if (!active) return;
+      setConnected(true);
+      const sessionToken = window.localStorage.getItem(ROOM_SESSION_STORAGE_KEY);
+      if (!sessionToken) return;
+      void requestRoom<RoomCredential>((ack) => client.emit("room:resume", { sessionToken }, ack)).then((response) => {
+        if (!active) return;
+        if (response.ok) {
+          setRoom(response.data.room);
+          setPlayer(response.data.player);
+          setError(null);
+        } else {
+          window.localStorage.removeItem(ROOM_SESSION_STORAGE_KEY);
+          setRoom(null);
+          setPlayer(null);
+          setError(response.error.message);
+        }
+      });
+    };
+    const onDisconnect = () => { if (active) setConnected(false); };
+    const onConnectError = () => {
+      if (active) {
+        setConnected(false);
+        setError("Nije moguće povezati se s poslužiteljem. Veza će se pokušati uspostaviti ponovno.");
+      }
+    };
+    const onRoomState = (state: PublicRoomState | { readonly roomCode: string; readonly closed: true; readonly reason: "creator-left" }) => {
+      if (!active) return;
+      if ("closed" in state) {
+        window.localStorage.removeItem(ROOM_SESSION_STORAGE_KEY);
+        setRoom(null);
+        setPlayer(null);
+        setNotice("Kreator je zatvorio sobu. Možete stvoriti novu sobu ili se pridružiti drugoj.");
+        return;
+      }
+      setRoom(state);
+    };
+    const onRoomStarted = ({ roomCode }: { readonly roomCode: string }) => {
+      if (!active) return;
+      setRoom((current) => current?.code === roomCode ? { ...current, status: "started" } : current);
+    };
+
+    client.on("connect", onConnect);
+    client.on("disconnect", onDisconnect);
+    client.on("connect_error", onConnectError);
+    client.on("room:state", onRoomState);
+    client.on("room:started", onRoomStarted);
+    return () => {
+      active = false;
+      client.off("connect", onConnect);
+      client.off("disconnect", onDisconnect);
+      client.off("connect_error", onConnectError);
+      client.off("room:state", onRoomState);
+      client.off("room:started", onRoomStarted);
+      client.disconnect();
+    };
+  }, []);
+
+  const request = async <T,>(send: (ack: (response: RoomAck<T>) => void) => void): Promise<T> => {
+    if (!socket?.connected) throw new Error("Veza s poslužiteljem nije uspostavljena.");
+    const response = await requestRoom(send);
+    if (!response.ok) throw new Error(response.error.message);
+    return response.data;
+  };
+
+  const perform = async (action: () => Promise<void>) => {
+    setError(null);
+    setBusy(true);
+    try { await action(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Radnja u sobi nije uspjela."); }
+    finally { setBusy(false); }
+  };
+
+  const acceptCredential = (credential: RoomCredential) => {
+    setRoom(credential.room);
+    setPlayer(credential.player);
+    setNotice(null);
+    try { window.localStorage.setItem(ROOM_SESSION_STORAGE_KEY, credential.sessionToken); }
+    catch { setError("Soba je otvorena, ali preglednik ne može spremiti podatke za ponovno povezivanje."); }
+  };
+
+  const createRoom = () => perform(async () => {
+    const credential = await request<RoomCredential>((ack) => socket!.emit("room:create", ack));
+    acceptCredential(credential);
+  });
+
+  const joinRoom = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void perform(async () => {
+      const credential = await request<RoomCredential>((ack) => socket!.emit("room:join", { roomCode: roomCodeInput }, ack));
+      acceptCredential(credential);
+    });
+  };
+
+  const leaveRoom = () => perform(async () => {
+    await request((ack) => socket!.emit("room:leave", ack));
+    window.localStorage.removeItem(ROOM_SESSION_STORAGE_KEY);
+    setRoom(null);
+    setPlayer(null);
+    setNotice("Napustili ste sobu.");
+  });
+
+  const startMatch = () => perform(async () => {
+    const started = await request<RoomStartNotice & { readonly room: PublicRoomState }>((ack) => socket!.emit("room:start", ack));
+    setRoom(started.room);
+  });
+
+  const copyRoomCode = () => {
+    if (!room) return;
+    if (!navigator.clipboard?.writeText) {
+      setError("Kopiranje nije dostupno. Označite oznaku sobe i kopirajte je ručno.");
+      return;
+    }
+    void navigator.clipboard.writeText(room.code)
+      .then(() => setNotice("Oznaka sobe kopirana je u međuspremnik."))
+      .catch(() => setError("Nije moguće kopirati oznaku. Označite je i kopirajte ručno."));
+  };
+
+  const startEnabled = connected && !busy && room?.status === "ready";
+
+  return (
+    <main className="app-shell multiplayer-shell">
+      <header className="topbar">
+        <a className="brand" href="#top" aria-label="Bela za dvoje — početna stranica">
+          <span className="brand-mark" aria-hidden="true">B</span>
+          <span><strong>Bela za dvoje</strong><small>MAĐARICE · ZA DVOJE</small></span>
+        </a>
+        <div className="topbar-actions"><span className={`connection-status ${connected ? "is-connected" : ""}`}><span className="online-dot" />{connected ? "Povezano" : "Povezivanje…"}</span></div>
+      </header>
+
+      <div className="page-content multiplayer-content" id="top">
+        {!room ? (
+          <section className="multiplayer-home">
+            <div className="welcome-icon" aria-hidden="true">BA</div>
+            <p className="eyebrow">HRVATSKA BELA · ONLINE</p>
+            <h1>Zaigrajte Belu udvoje</h1>
+            <p className="multiplayer-intro">Stvorite privatnu sobu i pozovite drugog igrača oznakom sobe.</p>
+            <div className="multiplayer-options">
+              <article className="multiplayer-option">
+                <span className="option-icon" aria-hidden="true">＋</span>
+                <h2>Kreiraj sobu</h2>
+                <p>Otvorite novu privatnu sobu kao Igrač 1.</p>
+                <button className="button button-primary button-large" type="button" onClick={() => void createRoom()} disabled={!connected || busy}>Kreiraj sobu</button>
+              </article>
+              <article className="multiplayer-option">
+                <span className="option-icon" aria-hidden="true">↗</span>
+                <h2>Pridruži se sobi</h2>
+                <p>Unesite oznaku koju vam je poslao drugi igrač.</p>
+                <form className="join-room-form" onSubmit={joinRoom}>
+                  <label htmlFor="room-code">Oznaka sobe</label>
+                  <input id="room-code" name="roomCode" autoComplete="off" maxLength={12} value={roomCodeInput}
+                    onChange={(event) => setRoomCodeInput(event.target.value.toUpperCase())} placeholder="Npr. K7M4XP" disabled={!connected || busy} />
+                  <button className="button button-subtle button-large" type="submit" disabled={!connected || busy || !roomCodeInput.trim()}>Pridruži se sobi</button>
+                </form>
+              </article>
+            </div>
+            <p className="multiplayer-footnote">Sobe su privremene i zatvaraju se ponovnim pokretanjem poslužitelja.</p>
+          </section>
+        ) : (
+          <section className="room-lobby">
+            <p className="eyebrow">PRIVATNA SOBA · {room.status === "started" ? "PARTIJA ZAPOČELA" : "ČEKAONICA"}</p>
+            <h1>{room.status === "started" ? "Partija je započela" : "Vaša soba"}</h1>
+            <div className="room-code-card">
+              <span>OZNAKA SOBE</span><strong aria-label={`Oznaka sobe ${room.code}`}>{room.code}</strong>
+              <button className="button button-subtle" type="button" onClick={() => void copyRoomCode()}>Kopiraj oznaku</button>
+            </div>
+            <div className="room-player-slots">
+              {(["player1", "player2"] as const).map((seat) => {
+                const slot = room.players[seat];
+                return <article className={`room-player-slot ${slot.connected ? "slot-connected" : ""}`} key={seat}>
+                  <span className="player-avatar" aria-hidden="true">{seat === "player1" ? "1" : "2"}</span>
+                  <div><strong>Igrač {seat === "player1" ? "1" : "2"}{player === seat ? " · Vi" : ""}</strong>
+                    <p>{seat === "player1" ? "Kreator sobe" : slot.assigned ? "Pridruženi igrač" : "Slobodno mjesto"}</p></div>
+                  <span className={`room-player-status ${slot.connected ? "" : "is-offline"}`}><i />{slot.connected ? "Povezan" : slot.assigned ? "Odspojen" : "Čeka se"}</span>
+                </article>;
+              })}
+            </div>
+            <div className="room-lobby-message" role="status">
+              {room.status === "started" ? "Mrežna igra bit će dostupna u sljedećoj razvojnoj fazi." : room.status === "ready" ? "Oba su igrača povezana. Kreator može započeti partiju." : "Čeka se da se drugi igrač pridruži sobi."}
+            </div>
+            {room.status === "started" ? <div className="multiplayer-placeholder"><strong>Partija je spremna</strong><p>Ovdje će se prikazati mrežni stol u sljedećoj fazi.</p></div> : null}
+            {error && <p className="multiplayer-error" role="alert">{error}</p>}
+            {notice && <p className="multiplayer-notice" role="status">{notice}</p>}
+            <div className="room-lobby-actions">
+              {player === "player1" && <button className="button button-primary button-large" type="button" onClick={() => void startMatch()} disabled={!startEnabled}>Započni partiju</button>}
+              <button className="button button-subtle button-large" type="button" onClick={() => void leaveRoom()} disabled={busy || !connected}>Napusti sobu</button>
+            </div>
+          </section>
+        )}
+        {!room && error && <p className="multiplayer-error" role="alert">{error}</p>}
+        {!room && notice && <p className="multiplayer-notice" role="status">{notice}</p>}
+      </div>
+    </main>
+  );
+}
+
+function LocalTestingApp() {
   const [snapshot, setSnapshot] = useState<LocalMatchSnapshot | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [zvanjaPlayer, setZvanjaPlayer] = useState<Player | null>(null);
   const [pendingBelaCardId, setPendingBelaCardId] = useState<string | null>(null);
-  const developmentMode = new URLSearchParams(window.location.search).get("dev") === "1";
+  const developmentMode = true;
 
   useEffect(() => {
     let active = true;
@@ -208,7 +425,7 @@ function App() {
                     <p className="eyebrow">ODABIR ADUTA · POTEZ {view.bidding.turn}</p>
                     <h2>{match.activePlayer === view.currentBidder ? "Odaberite adut" : `Čeka se ${view.currentBidder === view.viewer ? "vaš" : "protivnikov"} odabir`}</h2>
                     {allowedBids.length > 0 ? <div className="bid-actions">{allowedBids.map((bid) => bid === null
-                      ? <button className="button button-pass" key="pass" onClick={() => void runAction(() => localGameApi.submitBid(null))} disabled={busy}>Prođi</button>
+                      ? <button className="button button-pass" key="pass" onClick={() => void runAction(() => localGameApi.submitBid(null))} disabled={busy}>Dalje</button>
                       : <button className="button button-suit" key={bid} onClick={() => void runAction(() => localGameApi.submitBid(bid))} disabled={busy}>Zovi <strong>{bid}</strong></button>)}</div>
                       : <p className="small-note">U razvojnom načinu predajte potez drugom igraču.</p>}
                   </>}

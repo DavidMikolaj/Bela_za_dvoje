@@ -2,10 +2,11 @@
 import { createServer } from "node:http";
 import { Server } from "socket.io";
 import { createLocalGameRouter } from "./dev/local-game-api.js";
+import { attachMultiplayerHandlers, type ClientToServerEvents, type InterServerEvents, type ServerToClientEvents, type SocketData } from "./multiplayer/socket-events.js";
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
+const io = new Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>(httpServer, {
   cors: { origin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173" },
 });
 
@@ -17,12 +18,7 @@ if (process.env.NODE_ENV !== "production") {
   app.use("/api/dev", createLocalGameRouter());
 }
 
-io.on("connection", (socket) => {
-  console.info(`Socket connected: ${socket.id}`);
-  socket.on("disconnect", () => {
-    console.info(`Socket disconnected: ${socket.id}`);
-  });
-});
+attachMultiplayerHandlers(io);
 
 const port = Number(process.env.PORT ?? 3000);
 httpServer.listen(port, () => {
