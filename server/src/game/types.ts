@@ -60,6 +60,13 @@ export interface AwardedZvanja {
   readonly kind: "ordinary" | "bela";
 }
 
+export interface BelaAnnouncement {
+  readonly id: string;
+  readonly player: Player;
+  readonly cards: readonly [Card, Card];
+  readonly pointsAwarded: boolean;
+}
+
 export interface RoundScoreBreakdown {
   readonly caller: Player;
   readonly contractSucceeded: boolean;
@@ -166,6 +173,8 @@ export interface PlayerGameView {
   readonly zvanjaPointsAwarded: Readonly<Record<Player, number>>;
   /** Contains only ordinary declarations and Bela that have actually earned points. */
   readonly awardedZvanja: Readonly<Record<Player, readonly AwardedZvanja[]>>;
+  /** Public announcement is emitted on the first explicitly announced trump K/Q play. */
+  readonly belaAnnouncements: readonly BelaAnnouncement[];
   readonly collectedCardCounts: Readonly<Record<Player, number>>;
   readonly belaPoints: Readonly<Record<Player, number>>;
   readonly declarationComparisonResult: DeclarationComparisonResult | null;

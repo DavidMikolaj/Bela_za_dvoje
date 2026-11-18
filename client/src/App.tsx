@@ -1,7 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { localGameApi, type LocalMatchSnapshot, type Player, type PlayerGameView, type Suit } from "./game-api";
 import { sortCardsForDisplay } from "./card-sorting";
-import { emptyHandStatus, shouldRenderBiddingCards, shouldRenderRemainingPile, shouldRenderRoundSummary, shouldRenderTrick } from "./game-display";
+import { contractStatusMessage, emptyHandStatus, getNewTrickCardIds, getTrickCardsToDisplay, shouldRenderBiddingCards, shouldRenderRemainingPile, shouldRenderRoundSummary } from "./game-display";
 import { PlayingCard } from "./components/PlayingCard";
 import { getSuitIconAssetPath } from "./components/card-assets";
 import { getNewDeclarationNotices, type DeclarationNotice } from "./declaration-notices";
@@ -10,6 +10,12 @@ import "./App.css";
 
 function otherPlayer(player: Player): Player {
   return player === "player1" ? "player2" : "player1";
+}
+
+function SuitMark({ suit }: { readonly suit: Suit }) {
+  return <span className="suit-mark" title={suit} aria-label={suit}>
+    <img src={getSuitIconAssetPath(suit)} alt="" />{suit}
+  </span>;
 }
 
 function PlayerArea({
@@ -78,9 +84,13 @@ function DeclarationNotifications({ view, matchId }: { readonly view: PlayerGame
     if (fresh.length) {
       fresh.forEach(({ id }) => seen.add(id));
       try { window.localStorage.setItem(storageKey, JSON.stringify([...seen])); } catch { /* Keep the current queue usable without storage. */ }
-      setQueue((current) => [...current, ...fresh].slice(-6));
+      setQueue((current) => [
+        ...fresh.filter(({ kind }) => kind === "bela"),
+        ...current,
+        ...fresh.filter(({ kind }) => kind !== "bela"),
+      ].slice(0, 6));
     }
-  }, [matchId, view.roundNumber, view.awardedZvanja]);
+  }, [matchId, view.roundNumber, view.awardedZvanja, view.belaAnnouncements]);
 
   const current = queue[0];
   useEffect(() => {
@@ -94,7 +104,8 @@ function DeclarationNotifications({ view, matchId }: { readonly view: PlayerGame
   return <aside className="award-notice" aria-live="polite" aria-label="Obavijest o zvanju">
     <button type="button" className="award-notice-close" aria-label="Zatvori obavijest" onClick={() => setQueue((items) => items.slice(1))}>×</button>
     <p className="eyebrow">{current.kind === "bela" ? "BELA" : "OSVOJENA ZVANJA"}</p>
-    <h2>{current.kind === "bela" ? `${role} je zvao Belu! +${current.items[0]!.points}` : `${role} je osvojio/la zvanja`}</h2>
+    <h2>{current.kind === "bela" ? `${role} je zvao Belu!` : `${role} je osvojio/la zvanja`}</h2>
+    {current.kind === "bela" && <p className="bela-notice-points">{current.pointsAwarded ? "+20 bodova je dodijeljeno" : "20 bodova nakon što oba aduta budu odigrana"}</p>}
     <div className="award-notice-items">{current.items.map((item) => <article key={item.id}>
       <div><strong>{item.name}</strong><span>+{item.points}</span></div>
       <div className="award-notice-cards" aria-label={`Karte za ${item.name}`}>
@@ -374,9 +385,48 @@ function OnlineGameTable({
   const { view, room, nextRoundReady, newMatchReady } = gameState;
   const [zvanjaPlayer, setZvanjaPlayer] = useState<Player | null>(null);
   const [pendingBelaCardId, setPendingBelaCardId] = useState<string | null>(null);
+  const [flightOffsets, setFlightOffsets] = useState<Readonly<Record<string, { readonly x: number; readonly y: number }>>>({});
+  const localCardOrigins = useRef(new Map<string, DOMRect>());
+  const previousTrick = useRef<{ readonly key: string; readonly cardIds: ReadonlySet<string> } | null>(null);
   const opponent = otherPlayer(view.viewer);
   const canAct = connected && room.players[opponent].connected && !busy;
   const isRoundComplete = shouldRenderRoundSummary(view);
+  const trickCardsToDisplay = getTrickCardsToDisplay(view);
+
+  useLayoutEffect(() => {
+    const trickKey = `${view.roundNumber}:${view.currentTrick.number}`;
+    const previous = previousTrick.current;
+    const currentCards = view.currentTrick.cards;
+    if (previous?.key === trickKey) {
+      const newCardIds = new Set(getNewTrickCardIds(previous.key, previous.cardIds, trickKey, currentCards));
+      for (const { player, card } of currentCards) {
+        if (!newCardIds.has(card.id)) continue;
+        const destination = document.querySelector<HTMLElement>(`.table .played-card .playing-card[data-card-id="${card.id}"]`);
+        const source = player === view.viewer
+          ? localCardOrigins.current.get(card.id)
+          : document.querySelector<HTMLElement>(".table .opponent-area .hand-cards")?.getBoundingClientRect();
+        const target = destination?.getBoundingClientRect();
+        if (!source || !target) continue;
+        setFlightOffsets((current) => ({ ...current, [card.id]: {
+          x: source.left + source.width / 2 - target.left - target.width / 2,
+          y: source.top + source.height / 2 - target.top - target.height / 2,
+        } }));
+        window.setTimeout(() => setFlightOffsets((current) => {
+          if (!(card.id in current)) return current;
+          const next = { ...current };
+          delete next[card.id];
+          return next;
+        }), 420);
+        localCardOrigins.current.delete(card.id);
+      }
+    }
+    previousTrick.current = { key: trickKey, cardIds: new Set(currentCards.map(({ card }) => card.id)) };
+  }, [view.roundNumber, view.currentTrick.number, view.currentTrick.cards, view.viewer]);
+
+  const captureLocalCardOrigin = (cardId: string) => {
+    const cardElement = document.querySelector<HTMLElement>(`.table .viewer-area [data-card-id="${cardId}"]`);
+    if (cardElement) localCardOrigins.current.set(cardId, cardElement.getBoundingClientRect());
+  };
 
   return <>
     <DeclarationNotifications view={view} matchId={gameState.matchId} />
@@ -417,23 +467,25 @@ function OnlineGameTable({
           <div className="table-pile-deck"><PlayingCard faceDown backLabel="Preostali špil, licem prema dolje" /><span>{view.faceDownStackCount}</span></div>
           <div className="table-pile-upcard"><span>OTVORENA</span><PlayingCard key={view.faceUpCard.id} card={view.faceUpCard} /></div>
         </div>}
-        {shouldRenderTrick(view) && <div className="trick-display" aria-live="polite">
-          <div className="trick-display-heading"><span>ŠTIH {view.currentTrick.number} <i>/ 10</i></span><strong>{view.currentTrick.winner ? `${view.currentTrick.winner === view.viewer ? "Vi" : "Protivnik"} osvaja štih` : view.currentPlayer ? (view.currentTrick.cards.length === 0 ? "Odaberite kartu" : "Čeka se druga karta") : "Runda je završena"}</strong></div>
-          <div className="trick-cards">{view.currentTrick.cards.map(({ player, card }) => <div className={`played-card ${view.currentTrick.winner === player ? "trick-winner-card" : ""}`} key={`${view.currentTrick.number}-${player}`}><span>{player === view.viewer ? "JA" : "TI"}</span><PlayingCard card={card} /></div>)}{Array.from({ length: 2 - view.currentTrick.cards.length }, (_, index) => <div className="played-card" key={`waiting-${index}`}><span>—</span><div className="card-slot">·</div></div>)}</div>
+        {trickCardsToDisplay.length > 0 && <div className="trick-display" aria-live="polite">
+          <div className="trick-cards">{trickCardsToDisplay.map(({ player, card }, index) => {
+            const offset = flightOffsets[card.id];
+            const flightStyle = offset ? { "--play-x": `${offset.x}px`, "--play-y": `${offset.y}px` } as CSSProperties : undefined;
+            const placement = index === 0 ? "played-card-first" : "played-card-second";
+            return <div className={`played-card ${placement} ${offset ? "card-in-flight" : ""}`} key={`${view.currentTrick.number}-${player}`}><PlayingCard card={card} style={flightStyle} /></div>;
+          })}</div>
         </div>}
         <div className="table-rule" />
-        <div className="bidding-panel" aria-live="polite">
+        {(view.phase === "bidding" || view.phase === "test-round-ended" || isRoundComplete) && <div className="bidding-panel" aria-live="polite">
           {view.phase === "bidding" && <><p className="eyebrow">ODABIR ADUTA · POTEZ {view.bidding.turn}</p><h2>{view.currentBidder === view.viewer ? "Odaberite adut" : "Čeka se protivnikov odabir"}</h2>
-            {view.currentBidder === view.viewer && <div className="bid-actions">{view.allowedBids.map((bid) => bid === null ? <button className="button button-pass" key="pass" onClick={() => onBid(null)} disabled={!canAct}>Dalje</button> : <button className="button button-suit" key={bid} onClick={() => onBid(bid)} disabled={!canAct}>Zovi <strong>{bid}</strong></button>)}</div>}
+            {view.currentBidder === view.viewer && <div className="bid-actions">{view.allowedBids.map((bid) => bid === null ? <button className="button button-pass" key="pass" onClick={() => onBid(null)} disabled={!canAct}>Dalje</button> : <button className="button button-suit" key={bid} onClick={() => onBid(bid)} disabled={!canAct}>Zovi <SuitMark suit={bid} /></button>)}</div>}
           </>}
-          {view.phase === "playing" && <><p className="eyebrow">ŠTIH {view.currentTrick.number} OD 10 · ADUT {view.bidding.selectedSuit}</p><h2>{view.currentPlayer === view.viewer ? "Vaš je potez" : "Protivnik je na potezu"}</h2><p className="small-note">Istaknute karte su dopušteni potezi. Osvojeni štihovi: JA {view.tricksWon[view.viewer]} · TI {view.tricksWon[opponent]}</p></>}
-          {view.phase === "trick-complete" && <><p className="eyebrow">ŠTIH {view.currentTrick.number} ZAVRŠEN</p><h2>{view.currentTrick.winner === view.viewer ? "Osvojili ste štih" : "Protivnik osvaja štih"}</h2><p className="small-note">Sljedeći štih počinje automatski.</p></>}
-          {isRoundComplete && <><p className="eyebrow">RUNDA ZAVRŠENA · 10 ŠTIHOVA</p><h2>Runda je završena</h2><p className="small-note">JA: {view.tricksWon[view.viewer]} štiha · TI: {view.tricksWon[opponent]} štiha</p>{view.roundScore && <RoundResult view={view} />}{view.matchWinner && <><h3 className="match-winner">{view.matchWinner === view.viewer ? "Pobijedili ste" : "Protivnik je pobijedio"} u partiji!</h3><p className="match-final-score">Konačni rezultat · JA {view.matchScores[view.viewer]} : TI {view.matchScores[opponent]}</p></>}</>}
-          {view.phase === "round-complete" && view.awaitingTrickAcknowledgement && <p className="small-note">Prikaz zadnjeg štiha završava automatski.</p>}
-          {view.phase === "playing" && view.tricksPlayed === 0 && <p className="small-note">Igranje karata · spremno za početak</p>}
-        </div>
+          {view.phase === "test-round-ended" && <><p className="eyebrow">PROBNA RUNDA PREKINUTA</p><h2>Runda nije odigrana do kraja</h2></>}
+          {isRoundComplete && <><h2>Runda je završena</h2>{view.roundScore && <RoundResult view={view} />}{view.matchWinner && <div className="match-result"><h3 className="match-winner">{view.matchWinner === view.viewer ? "Pobijedili ste" : "Protivnik je pobijedio"} u partiji!</h3><p className="match-final-score">Konačni rezultat · JA {view.matchScores[view.viewer]} : TI {view.matchScores[opponent]}</p></div>}</>}
+        </div>}
       </div>
       <PlayerArea player={view.viewer} view={view} actionsDisabled={!canAct} onPlayCard={(cardId) => {
+        captureLocalCardOrigin(cardId);
         if (view.belaAnnouncementCardIds.includes(cardId)) setPendingBelaCardId(cardId);
         else onPlayCard(cardId, false);
       }} />
@@ -468,6 +520,7 @@ function LocalTestingApp() {
 
   const match = snapshot?.matchExists ? snapshot : null;
   const view = match?.view ?? null;
+  const trickCardsToDisplay = view ? getTrickCardsToDisplay(view) : [];
 
   useEffect(() => {
     if (!match || !view?.awaitingTrickAcknowledgement || match.trickTransitionAt === null) return;
@@ -587,47 +640,30 @@ function LocalTestingApp() {
                   <div className="table-pile-upcard"><span>OTVORENA</span><PlayingCard key={view.faceUpCard.id} card={view.faceUpCard} /></div>
                 </div>}
 
-                {shouldRenderTrick(view) && <div className="trick-display" aria-live="polite">
-                  <div className="trick-display-heading"><span>ŠTIH {view.currentTrick.number} <i>/ 10</i></span>
-                    <strong>{view.currentTrick.winner ? `${view.currentTrick.winner === view.viewer ? "Vi" : "Protivnik"} osvaja štih` : view.currentPlayer ? (view.currentTrick.cards.length === 0 ? "Odaberite kartu" : "Čeka se druga karta") : "Runda je završena"}</strong>
-                  </div>
+                {trickCardsToDisplay.length > 0 && <div className="trick-display" aria-live="polite">
                   <div className="trick-cards">
-                    {view.currentTrick.cards.map(({ player, card }) => <div className={`played-card ${view.currentTrick.winner === player ? "trick-winner-card" : ""}`} key={`${view.currentTrick.number}-${player}`}>
-                      <span>{player === view.viewer ? "JA" : "TI"}</span><PlayingCard card={card} />
+                    {trickCardsToDisplay.map(({ player, card }, index) => <div className={`played-card ${index === 0 ? "played-card-first" : "played-card-second"}`} key={`${view.currentTrick.number}-${player}`}>
+                      <PlayingCard card={card} />
                     </div>)}
-                    {Array.from({ length: 2 - view.currentTrick.cards.length }, (_, index) => <div className="played-card" key={`waiting-${index}`}><span>—</span><div className="card-slot">·</div></div>)}
                   </div>
                 </div>}
                 <div className="table-rule" />
-                <div className="bidding-panel" aria-live="polite">
+                {(view.phase === "bidding" || view.phase === "test-round-ended" || shouldRenderRoundSummary(view)) && <div className="bidding-panel" aria-live="polite">
                   {view.phase === "bidding" && <>
                     <p className="eyebrow">ODABIR ADUTA · POTEZ {view.bidding.turn}</p>
                     <h2>{match.activePlayer === view.currentBidder ? "Odaberite adut" : `Čeka se ${view.currentBidder === view.viewer ? "vaš" : "protivnikov"} odabir`}</h2>
                     {allowedBids.length > 0 ? <div className="bid-actions">{allowedBids.map((bid) => bid === null
                       ? <button className="button button-pass" key="pass" onClick={() => void runAction(() => localGameApi.submitBid(null))} disabled={busy}>Dalje</button>
-                      : <button className="button button-suit" key={bid} onClick={() => void runAction(() => localGameApi.submitBid(bid))} disabled={busy}>Zovi <strong>{bid}</strong></button>)}</div>
+                      : <button className="button button-suit" key={bid} onClick={() => void runAction(() => localGameApi.submitBid(bid))} disabled={busy}>Zovi <SuitMark suit={bid} /></button>)}</div>
                       : <p className="small-note">U razvojnom načinu predajte potez drugom igraču.</p>}
                   </>}
-                  {view.phase === "playing" && <>
-                    <p className="eyebrow">ŠTIH {view.currentTrick.number} OD 10 · ADUT {view.bidding.selectedSuit}</p>
-                    <h2>{view.currentPlayer === view.viewer ? "Vaš je potez" : "Protivnik je na potezu"}</h2>
-                    <p className="small-note">Istaknute karte su dopušteni potezi.{view.zvanjaPointsAwarded[view.viewer] > 0 || view.zvanjaPointsAwarded[otherPlayer(view.viewer)] > 0
-                      ? ` Osvojena zvanja: ${view.zvanjaPointsAwarded[view.viewer] > 0 ? `JA +${view.zvanjaPointsAwarded[view.viewer]}` : `TI +${view.zvanjaPointsAwarded[otherPlayer(view.viewer)]}`} boda.`
-                      : ""}</p>
-                  </>}
-                  {view.phase === "trick-complete" && <>
-                    <p className="eyebrow">ŠTIH {view.currentTrick.number} ZAVRŠEN</p><h2>{view.currentTrick.winner === view.viewer ? "Osvojili ste štih" : "Protivnik osvaja štih"}</h2>
-                    <p className="small-note">Sljedeći štih počinje automatski.</p>
-                  </>}
                   {view.phase === "test-round-ended" && <><p className="eyebrow">RAZVOJNA RUNDA PREKINUTA</p><h2>Runda nije odigrana do kraja</h2></>}
-                  {view.phase === "round-complete" && view.awaitingTrickAcknowledgement && <p className="small-note">Prikaz zadnjeg štiha završava automatski.</p>}
                   {shouldRenderRoundSummary(view) && <>
-                    <p className="eyebrow">RUNDA ZAVRŠENA · 10 ŠTIHOVA</p><h2>Runda je završena</h2>
-                    <p className="small-note">JA: {view.tricksWon[view.viewer]} štiha · TI: {view.tricksWon[otherPlayer(view.viewer)]} štiha</p>
+                    <h2>Runda je završena</h2>
                     {view.roundScore && <RoundResult view={view} />}
-                    {view.matchWinner && <h3 className="match-winner">{view.matchWinner === view.viewer ? "Pobijedili ste" : "Protivnik je pobijedio"} u partiji!</h3>}
+                    {view.matchWinner && <div className="match-result"><h3 className="match-winner">{view.matchWinner === view.viewer ? "Pobijedili ste" : "Protivnik je pobijedio"} u partiji!</h3><p className="match-final-score">Konačni rezultat · JA {view.matchScores[view.viewer]} : TI {view.matchScores[otherPlayer(view.viewer)]}</p></div>}
                   </>}
-                </div>
+                </div>}
               </div>
 
               <PlayerArea player={view.viewer} view={view} onPlayCard={(cardId) => {
@@ -668,7 +704,7 @@ function RoundResult({ view }: { readonly view: PlayerGameView }) {
     .filter((player) => view.zvanjaPointsAwarded[player] > 0);
   return <div className="round-result" aria-label="Pregled bodova runde">
     <h3 className="round-winner">Pobjednik runde · {score.contractSucceeded ? (score.caller === view.viewer ? "JA" : "TI") : (score.caller === view.viewer ? "TI" : "JA")}</h3>
-    <p className="contract-result">{score.contractSucceeded ? "Ugovor je ispunjen" : "Ugovor nije ispunjen"}</p>
+    <p className="contract-result">{contractStatusMessage(score.contractSucceeded, score.caller, view.viewer)}</p>
     <div className="round-player-points" aria-label="Osvojeni bodovi i ukupni rezultat">
       {([view.viewer, otherPlayer(view.viewer)] as const).map((player) => <article key={player}>
         <strong>{player === view.viewer ? "JA" : "TI"}</strong>
@@ -683,7 +719,7 @@ function RoundResult({ view }: { readonly view: PlayerGameView }) {
     <p>Štiglja · JA {score.stigljaBonus[view.viewer]} · TI {score.stigljaBonus[otherPlayer(view.viewer)]}</p>
     <p>{score.contractSucceeded ? "Ugovor" : "Zbroj prije prijenosa"} · JA {score.roundTotals[view.viewer]} · TI {score.roundTotals[otherPlayer(view.viewer)]}</p>
     <p className="match-points-awarded">Bodovi dodani rezultatu partije · JA +{score.matchPointsAwarded[view.viewer]} · TI +{score.matchPointsAwarded[otherPlayer(view.viewer)]}</p>
-    {!score.contractSucceeded && <p className="contract-failure-note">Ugovor nije ispunjen. Protivnik preuzima sve bodove runde, uključujući zvanja i Belu.</p>}
+    {!score.contractSucceeded && <p className="contract-failure-note">Protivnik preuzima sve bodove runde, uključujući zvanja i Belu.</p>}
     <div className="round-zvanja-details"><h4>Osvojena zvanja u ovoj rundi</h4>
       {([view.viewer, otherPlayer(view.viewer)] as const).map((player) => <ZvanjaList key={player} view={view} player={player} />)}
       {awardedPlayers.length === 0 && <p>Nema osvojenih zvanja.</p>}

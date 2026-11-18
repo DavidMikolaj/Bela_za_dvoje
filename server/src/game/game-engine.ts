@@ -548,6 +548,21 @@ export function getPlayerView(state: GameState, viewer: Player): PlayerGameView 
       player2: (state.declarationComparisonResult?.pointsAwarded.player2 ?? 0) + state.belaPoints.player2,
     },
     awardedZvanja: getAwardedZvanja(state),
+    belaAnnouncements: (Object.keys(state.belaProgress) as Player[]).flatMap((player) => {
+      const progress = state.belaProgress[player];
+      if (!progress.called || !state.bidding.selectedSuit) return [];
+      const hand = [...state.players[player].initialCards, ...state.players[player].additionalCards];
+      const kingCard = progress.kingCard ?? hand.find((card) => card.suit === state.bidding.selectedSuit && card.rank === "K");
+      const queenCard = progress.queenCard ?? hand.find((card) => card.suit === state.bidding.selectedSuit && card.rank === "Q");
+      if (!kingCard || !queenCard) return [];
+      return [{
+        // Keep the prior awarded-notice identifier so existing acknowledged Bela notices stay dismissed.
+        id: `bela:${kingCard.id}:${queenCard.id}`,
+        player,
+        cards: [kingCard, queenCard] as const,
+        pointsAwarded: progress.awarded,
+      }];
+    }),
     collectedCardCounts: {
       player1: state.collectedCards.player1.length,
       player2: state.collectedCards.player2.length,

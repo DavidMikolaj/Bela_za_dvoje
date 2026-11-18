@@ -28,6 +28,13 @@ export interface AwardedZvanja {
   readonly kind: "ordinary" | "bela";
 }
 
+export interface BelaAnnouncement {
+  readonly id: string;
+  readonly player: Player;
+  readonly cards: readonly [Card, Card];
+  readonly pointsAwarded: boolean;
+}
+
 export interface RoundScoreBreakdown {
   readonly caller: Player;
   readonly contractSucceeded: boolean;
@@ -82,6 +89,7 @@ export interface PlayerGameView {
   readonly trickPoints: Readonly<Record<Player, number>>;
   readonly zvanjaPointsAwarded: Readonly<Record<Player, number>>;
   readonly awardedZvanja: Readonly<Record<Player, readonly AwardedZvanja[]>>;
+  readonly belaAnnouncements: readonly BelaAnnouncement[];
   readonly belaPoints: Readonly<Record<Player, number>>;
   readonly declarationComparisonResult: DeclarationComparisonResult | null;
   readonly roundScore: RoundScoreBreakdown | null;

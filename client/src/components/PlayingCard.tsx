@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import type { Card } from "../game-api";
 import { CARD_BACK_ASSET_PATH, getPlayingCardAssetPath } from "./card-assets";
 
@@ -9,6 +9,7 @@ export interface PlayingCardProps {
   readonly onPlay?: () => void;
   readonly disabled?: boolean;
   readonly legal?: boolean;
+  readonly style?: CSSProperties;
 }
 
 /** Lice i naličje mađarice s tekstualnom zamjenom i mogućnošću odigravanja karte. */
@@ -19,6 +20,7 @@ export function PlayingCard({
   onPlay,
   disabled = false,
   legal = false,
+  style,
 }: PlayingCardProps) {
   const [imageFailed, setImageFailed] = useState(false);
   const isBack = faceDown || !card;
@@ -36,7 +38,7 @@ export function PlayingCard({
     : <img className="card-artwork" src={imagePath} alt="" draggable={false} onError={() => setImageFailed(true)} />;
 
   if (onPlay) {
-    return <button type="button" className={className} aria-label={`Odigraj: ${label}`} onClick={onPlay} disabled={disabled}>{content}</button>;
+    return <button type="button" className={className} style={style} data-card-id={card?.id} aria-label={`Odigraj: ${label}`} onClick={onPlay} disabled={disabled}>{content}</button>;
   }
-  return <div className={className} role="img" aria-label={label}>{content}</div>;
+  return <div className={className} style={style} data-card-id={card?.id} role="img" aria-label={label}>{content}</div>;
 }

@@ -29,6 +29,12 @@ describe("Mađarice card asset mapping", () => {
   });
 
   it("maps all suit icons and the card back to existing images", () => {
+    expect(SUITS.map(getSuitIconAssetPath)).toEqual([
+      "/cards/suits/heart-icon@medium.png",
+      "/cards/suits/bell-icon@medium.png",
+      "/cards/suits/acorn-icon@medium.png",
+      "/cards/suits/leaf-icon@medium.png",
+    ]);
     for (const suit of SUITS) expect(existsSync(resolve(process.cwd(), "client/public", getSuitIconAssetPath(suit).slice(1)))).toBe(true);
     expect(existsSync(resolve(process.cwd(), "client/public", CARD_BACK_ASSET_PATH.slice(1)))).toBe(true);
   });

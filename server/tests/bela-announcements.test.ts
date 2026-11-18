@@ -75,11 +75,29 @@ describe("optional Bela announcement", () => {
     const queen = state.players[caller].initialCards.find(({ rank }) => rank === "Q")!;
     expect(state.belaProgress[caller].called).toBe(true);
     expect(state.belaPoints[caller]).toBe(0);
+    expect(getPlayerView(state, caller).belaAnnouncements).toHaveLength(1);
 
     state = playCard(state, caller, queen.id, false);
     expect(state.belaPoints[caller]).toBe(20);
     expect(state.belaProgress[caller].awarded).toBe(true);
+    expect(getPlayerView(state, caller).belaAnnouncements).toHaveLength(1);
     expect(getPlayerView(state, caller).awardedZvanja[caller].filter(({ kind }) => kind === "bela")).toHaveLength(1);
+  });
+
+  it.each(["K", "Q"] as const)("publishes the King/Queen announcement immediately when %s is played first", (rank) => {
+    const initial = stateWithBelaPair();
+    const caller = initial.currentPlayer!;
+    const first = initial.players[caller].initialCards.find((candidate) => candidate.rank === rank)!;
+    const state = playCard(initial, caller, first.id, true);
+    const other = caller === "player1" ? "player2" : "player1";
+
+    expect(getPlayerView(state, caller).belaAnnouncements).toEqual([expect.objectContaining({
+      player: caller,
+      pointsAwarded: false,
+      cards: expect.arrayContaining([expect.objectContaining({ rank: "K" }), expect.objectContaining({ rank: "Q" })]),
+    })]);
+    expect(getPlayerView(state, other).belaAnnouncements).toHaveLength(1);
+    expect(state.belaPoints[caller]).toBe(0);
   });
 
   it("does not award Bela when the player declines both announcement opportunities", () => {

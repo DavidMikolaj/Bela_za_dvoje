@@ -5,6 +5,7 @@ export interface DeclarationNotice {
   readonly player: Player;
   readonly kind: "ordinary" | "bela";
   readonly items: readonly AwardedZvanja[];
+  readonly pointsAwarded?: boolean;
 }
 
 /** Creates public notices from server-awarded data only; unawarded declarations never enter the result. */
@@ -20,10 +21,13 @@ export function getNewDeclarationNotices(
       const id = `${view.roundNumber}:ordinary:${player}:${ordinary.map(({ id: itemId }) => itemId).sort().join(",")}`;
       if (!seenIds.has(id)) fresh.push({ id, player, kind: "ordinary", items: ordinary });
     }
-    for (const bela of awards.filter(({ kind }) => kind === "bela")) {
-      const id = `${view.roundNumber}:${bela.id}`;
-      if (!seenIds.has(id)) fresh.push({ id, player, kind: "bela", items: [bela] });
-    }
+  }
+  for (const bela of view.belaAnnouncements) {
+    const id = `${view.roundNumber}:${bela.id}`;
+    if (seenIds.has(id)) continue;
+    fresh.push({ id, player: bela.player, kind: "bela", pointsAwarded: bela.pointsAwarded, items: [{
+      id: bela.id, player: bela.player, name: "Bela", points: 20, cards: bela.cards, kind: "bela",
+    }] });
   }
   return fresh;
 }

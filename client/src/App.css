@@ -631,62 +631,12 @@ button.playing-card {
   gap: 8px;
 }
 
-.trick-display-heading {
-  width: min(410px, 100%);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: #c5dac7;
-  font-family: "DM Mono", monospace;
-  font-size: 8px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-}
-
-.trick-display-heading i {
-  color: #8faa96;
-  font-style: normal;
-}
-
-.trick-display-heading strong {
-  color: #f1e7bd;
-  font-family: "DM Sans", sans-serif;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
 .trick-cards {
   min-height: 83px;
   display: flex;
   align-items: flex-start;
   justify-content: center;
   gap: 15px;
-}
-
-.played-card {
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.played-card > span {
-  color: #c5d9c7;
-  font-size: 8px;
-}
-
-.card-slot {
-  width: 57px;
-  height: 82px;
-  display: grid;
-  place-items: center;
-  border: 1px dashed rgba(223, 239, 218, 0.3);
-  border-radius: 7px;
-  color: rgba(223, 239, 218, 0.5);
-  font-family: "Playfair Display", Georgia, serif;
-  font-size: 19px;
 }
 
 /* Polished blue table and viewer-relative score layout. */
@@ -771,10 +721,6 @@ body,
 .card-back { border-color: rgba(199, 220, 251, .56); background: repeating-linear-gradient(45deg, rgba(213, 228, 252, .15) 0 1px, transparent 1px 6px), repeating-linear-gradient(-45deg, rgba(213, 228, 252, .09) 0 1px, transparent 1px 6px), linear-gradient(145deg, #3d5f91, #203e6b); box-shadow: 0 4px 8px rgba(3, 12, 26, .3), inset 0 0 0 3px rgba(8, 25, 50, .46); }
 .hand-caption { color: rgba(210, 226, 249, .62); }
 .table-rule { background: linear-gradient(90deg, transparent, rgba(198, 218, 247, .23), transparent); }
-.trick-display-heading { color: #bed2ed; }
-.trick-display-heading strong { color: #f4df9f; }
-.played-card > span { color: #bfd4f0; font-family: "DM Mono", monospace; font-size: 9px; }
-.trick-winner-card .playing-card { outline: 3px solid #e6ce86; outline-offset: 3px; box-shadow: 0 0 24px rgba(238, 207, 122, .38); transform: translateY(-3px); }
 .bidding-panel h2 { color: #f0f5fd; }
 .small-note { color: #bacbe2; }
 .button-primary { color: #132746; background: #c5dcf6; }
@@ -803,7 +749,6 @@ body,
   .player-avatar { width: 27px; height: 27px; }
   .player-name-block { gap: 4px; }
   .player-name-block p { margin-left: 4px; }
-  .trick-winner-card .playing-card { outline-offset: 2px; }
 }
 
 .table-rule {
@@ -1221,11 +1166,6 @@ body,
     gap: 11px;
   }
 
-  .card-slot {
-    width: 47px;
-    height: 68px;
-  }
-
   .center-cards {
     gap: 34px;
   }
@@ -1318,11 +1258,6 @@ body,
   .table-center {
     grid-template-columns: 1fr minmax(195px, 1.6fr) 1fr;
     gap: 2px;
-  }
-
-  .card-slot {
-    width: 42px;
-    height: 61px;
   }
 
   .deck-stack::before,
@@ -1456,13 +1391,8 @@ body,
 .game-screen .deck-count { right: -18px; bottom: -6px; }
 .game-screen .center-label { margin-bottom: 5px; font-size: clamp(7px, .65vw, 9px); }
 .game-screen .trick-display { min-height: 0; padding: 0; gap: clamp(4px, .8dvh, 10px); }
-.game-screen .trick-display-heading { width: min(560px, 100%); font-size: clamp(9px, .8vw, 12px); }
-.game-screen .trick-display-heading strong { font-size: clamp(11px, 1vw, 15px); }
 .game-screen .trick-cards { min-height: 0; align-items: center; gap: clamp(16px, 3vw, 42px); }
-.game-screen .played-card { gap: 5px; }
-.game-screen .played-card > span { font-size: clamp(9px, .8vw, 12px); }
-.game-screen .trick-cards .playing-card,
-.game-screen .card-slot { width: var(--trick-card-width); height: auto; aspect-ratio: .695; }
+.game-screen .trick-cards .playing-card { width: var(--trick-card-width); height: auto; aspect-ratio: .695; }
 .game-screen .bidding-panel { min-height: 0; padding: 2px 0 0; }
 .game-screen .bidding-panel .eyebrow { margin: 0 0 4px; font-size: clamp(8px, .7vw, 10px); }
 .game-screen .bidding-panel h2 { font-size: clamp(17px, 1.65vw, 24px); }
@@ -1493,8 +1423,7 @@ body,
   .game-screen .viewer-area .playing-card { width: clamp(68px, 6.2vw, 96px); }
   .game-screen .opponent-area .playing-card { width: clamp(54px, 4.8vw, 78px); }
   .game-screen .table-center { grid-template-rows: 1px auto minmax(65px, 1fr) 1px auto; }
-  .game-screen .trick-cards .playing-card,
-  .game-screen .card-slot { width: clamp(68px, 5.5vw, 88px); }
+  .game-screen .trick-cards .playing-card { width: clamp(68px, 5.5vw, 88px); }
 }
 
 @media (max-width: 700px) {
@@ -1570,11 +1499,7 @@ body,
   .game-screen .deck-count { right: -12px; bottom: -5px; min-width: 23px; padding: 3px; font-size: 8px; }
   .game-screen .deck-count small { font-size: 5px; }
   .game-screen .trick-display { min-height: 0; gap: 4px; }
-  .game-screen .trick-display-heading { width: 100%; font-size: 7px; letter-spacing: .5px; }
-  .game-screen .trick-display-heading strong { font-size: 9px; }
   .game-screen .trick-cards { min-height: 0; gap: 16px; }
-  .game-screen .played-card { gap: 3px; }
-  .game-screen .played-card > span { font-size: 7px; }
   .game-screen .bidding-panel { padding-top: 2px; }
   .game-screen .bidding-panel .eyebrow { margin-bottom: 3px; font-size: 7px; }
   .game-screen .bidding-panel h2 { font-size: 15px; }
@@ -1845,6 +1770,41 @@ body,
 .award-notice-cards .playing-card { width: 42px; height: auto; aspect-ratio: .695; }
 .round-result { overflow-wrap: anywhere; }
 .match-final-score { margin: 8px 0 0; color: #f1d990; font: 700 12px "DM Mono", monospace; }
+.bela-notice-points { margin: -7px 0 12px; color: #c4d2e8; font-size: 11px; }
+.match-result { display: grid; justify-items: center; gap: 4px; margin-top: 12px; }
+.match-result .match-winner { margin: 0; line-height: 1.25; text-align: center; }
+.match-result .match-final-score { margin: 0; line-height: 1.5; text-align: center; }
+.suit-mark { display: inline-flex; align-items: center; justify-content: center; gap: 5px; text-transform: lowercase; }
+.suit-mark img { width: 20px; height: 20px; object-fit: contain; }
+.button-suit .suit-mark { margin-left: 2px; }
+.button-suit .suit-mark img { width: 18px; height: 18px; }
+
+/* A played card enters from the corresponding hand edge while server state remains authoritative. */
+.card-in-flight .playing-card { animation: card-play-to-trick 360ms cubic-bezier(.2,.75,.25,1) both; }
+@keyframes card-play-to-trick {
+  from { opacity: .72; transform: translate3d(var(--play-x), var(--play-y), 0) rotate(-4deg) scale(.92); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) rotate(0) scale(1); }
+}
+
+/* Let round summaries size the table and page from their content. */
+.app-shell.round-finished { height: auto; min-height: 100dvh; overflow: visible; display: flex; flex-direction: column; }
+.round-finished .game-screen { flex: 1 0 auto; display: flex; flex-direction: column; height: auto; min-height: 0; gap: clamp(8px, 1.4vh, 16px); padding-bottom: 18px; }
+.round-finished .table { display: grid; flex: 0 0 auto; height: auto; min-height: 0; grid-template-rows: auto auto auto; overflow: visible; }
+.round-finished .table-center.round-summary-center { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; height: auto; min-height: 0; }
+.round-finished .round-summary-center .bidding-panel { min-height: 0; width: min(850px, 100%); padding: 8px 0; }
+.round-finished .round-result { max-height: none; overflow: visible; }
+.round-finished .controls-row { flex: 0 0 auto; flex-wrap: wrap; }
+
+/* Keep the one remaining deck back and exchanged upcard just above and right of the trick. */
+.game-screen .playing-center { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; grid-template-areas: "pile" "trick" "bidding"; gap: clamp(5px, .9dvh, 10px); }
+.game-screen .playing-center .table-pile { width: fit-content; justify-self: end; grid-area: pile; flex-direction: row; align-items: end; gap: 9px; }
+.game-screen .playing-center .trick-display { grid-area: trick; grid-column: auto; }
+.table-pile-deck .playing-card,
+.table-pile-upcard .playing-card { width: clamp(32px, 3.7vw, 48px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .card-in-flight .playing-card { animation: none; }
+}
 
 @media (max-width: 700px) {
   .round-complete-table { min-height: 415px; }
@@ -1855,4 +1815,59 @@ body,
   .award-notice { top: 68px; right: 8px; max-height: 45dvh; padding: 13px; }
   .award-notice h2 { font-size: 16px; }
   .award-notice-cards .playing-card { width: 36px; }
+  .game-screen .playing-center { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; grid-template-areas: "pile" "trick" "bidding"; }
+  .game-screen .playing-center .table-pile { justify-self: end; flex-direction: row; }
+  .table-pile-deck .playing-card,
+  .table-pile-upcard .playing-card { width: 34px; }
+}
+
+/* Keep the exchanged upcard at the same scale as the bidding face-up card. */
+.game-screen .table-pile-upcard .playing-card { width: clamp(72px, 6.6vw, 106px); }
+@media (max-width: 700px) {
+  .game-screen .table-pile-upcard .playing-card { width: clamp(48px, 14vw, 65px); }
+}
+
+/* Cards alone form the trick: overlap them naturally and keep the entire pair centered. */
+.game-screen .trick-display {
+  grid-column: 1 / -1;
+  min-height: 0;
+  padding: 0;
+  gap: 0;
+}
+.game-screen .trick-cards {
+  --trick-overlap: clamp(22px, 3.2vw, 42px);
+  width: min(100%, calc(var(--trick-card-width) + var(--trick-card-width) - var(--trick-overlap)));
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-inline: auto;
+}
+.game-screen .played-card {
+  position: relative;
+  display: block;
+  flex: 0 0 var(--trick-card-width);
+  width: var(--trick-card-width);
+}
+.game-screen .played-card-first {
+  z-index: 1;
+  transform: translate(-5px, 2px) rotate(-10deg);
+}
+.game-screen .played-card-second {
+  z-index: 2;
+  margin-left: calc(0px - var(--trick-overlap));
+  transform: translate(5px, -2px) rotate(9deg);
+}
+.game-screen .trick-cards .playing-card {
+  height: auto;
+  aspect-ratio: .695;
+  border-radius: clamp(5px, .55vw, 9px);
+  box-shadow: 0 12px 20px rgba(1, 8, 20, .42), 0 3px 7px rgba(1, 8, 20, .34);
+}
+
+@media (max-width: 700px) {
+  .game-screen .trick-cards { --trick-overlap: clamp(18px, 6vw, 30px); }
+  .game-screen .played-card-first { transform: translate(-3px, 2px) rotate(-10deg); }
+  .game-screen .played-card-second { transform: translate(3px, -2px) rotate(9deg); }
 }
